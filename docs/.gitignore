@@ -1,0 +1,11 @@
+# Ignore Jekyll build artifacts
+_site/
+.sass-cache/
+.jekyll-cache/
+
+# Ignore gem install artifacts
+.bundle/
+Gemfile.lock
+
+# Ignore OS files
+.DS_Store
