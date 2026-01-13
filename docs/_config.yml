@@ -27,9 +27,10 @@ url: "https://oekalegon.github.io"  # GitHub username (lowercase)
 github_username:  Oekalegon
 
 # Build settings
-theme: minima
+remote_theme: Oekalegon/jekyll-klise
 plugins:
   - jekyll-feed
+  - jekyll-remote-theme
 
 # Exclude from processing.
 # The following items will not be processed, by default.
