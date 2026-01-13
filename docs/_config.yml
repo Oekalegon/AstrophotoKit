@@ -26,6 +26,12 @@ baseurl: "/AstrophotoKit"   # Repo name, important for GitHub Pages
 url: "https://oekalegon.github.io"  # GitHub username (lowercase)
 github_username:  Oekalegon
 
+# Author settings (required by jekyll-klise theme)
+author:
+  name: Oekalegon
+  bio: Astrophotography enthusiast, AI developer
+  avatar: /assets/images/Oekalegon-square.png
+
 # Build settings
 remote_theme: Oekalegon/jekyll-klise
 plugins:
