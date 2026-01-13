@@ -1,7 +1,7 @@
 import Foundation
 import Metal
 import MetalKit
-import CAstrophotoKit
+import CCFITSIO
 
 /// Shared utility for converting screen coordinates to image pixel coordinates
 public enum FITSCoordinateConverter {
@@ -238,7 +238,7 @@ extension FITSFile {
             if status == 0 {
                 let key = String(cString: keyname).trimmingCharacters(in: .whitespaces)
                 let valStr = String(cString: value).trimmingCharacters(in: .whitespaces)
-                let commStr = String(cString: comment).trimmingCharacters(in: .whitespaces)
+                _ = String(cString: comment).trimmingCharacters(in: .whitespaces)
                 
                 // Skip END keyword
                 if key == "END" { continue }
@@ -281,7 +281,7 @@ extension FITSFile {
         var naxes = [Int64](repeating: 0, count: 3)
         
         // Get image parameters
-        var naxesLong = [Int](repeating: 0, count: 3)
+        let naxesLong = [Int](repeating: 0, count: 3)
         var naxesArray = naxesLong.map { Int64($0) }
         _ = getImageParameters(file, 3, &bitpix, &naxis, &naxesArray, &status)
         naxes = naxesArray

@@ -1,5 +1,5 @@
 import Foundation
-import CAstrophotoKit
+import CCFITSIO
 
 // Direct C function bindings for functions that Swift Package Manager can't see
 // Using Swift naming conventions while mapping to C function names
@@ -49,7 +49,7 @@ public class FITSFile {
     deinit {
         if let file = fitsfile {
             var status: Int32 = 0
-            closeFITSFile(file, &status)
+            _ = closeFITSFile(file, &status)
         }
     }
     

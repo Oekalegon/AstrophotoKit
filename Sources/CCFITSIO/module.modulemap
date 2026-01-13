@@ -1,0 +1,5 @@
+module CCFITSIO [system] {
+    header "shim.h"
+    link "cfitsio"
+    export *
+}

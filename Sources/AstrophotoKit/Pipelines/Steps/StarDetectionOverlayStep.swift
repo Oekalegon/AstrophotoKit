@@ -238,7 +238,7 @@ public class StarDetectionOverlayStep: PipelineStep {
         )
         
         // Create output ProcessedImage with processing history
-        var parameters: [String: String] = [
+        let parameters: [String: String] = [
             "ellipse_count": "\(ellipses.count)",
             "ellipse_color_r": "\(ellipseColorR)",
             "ellipse_color_g": "\(ellipseColorG)",

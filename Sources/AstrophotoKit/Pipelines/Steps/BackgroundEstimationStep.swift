@@ -115,13 +115,13 @@ public class BackgroundEstimationStep: PipelineStep {
         
         // Create output ProcessedImages with processing history
         // Use different parameters to distinguish the two outputs
-        var backgroundParameters: [String: String] = [
+        let backgroundParameters: [String: String] = [
             "method": method.rawValue,
             "window_size": "\(windowSize)",
             "output": "background_image"
         ]
         
-        var backgroundSubtractedParameters: [String: String] = [
+        let backgroundSubtractedParameters: [String: String] = [
             "method": method.rawValue,
             "window_size": "\(windowSize)",
             "output": "background_subtracted_image"
@@ -146,7 +146,7 @@ public class BackgroundEstimationStep: PipelineStep {
         )
         
         // Create ProcessedScalar with processing history from input image
-        var backgroundLevelParameters: [String: String] = [
+        let backgroundLevelParameters: [String: String] = [
             "method": method.rawValue,
             "window_size": "\(windowSize)",
             "output": "background_level"

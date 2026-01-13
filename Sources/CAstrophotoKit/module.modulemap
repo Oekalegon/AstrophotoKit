@@ -1,7 +1,0 @@
-module CAstrophotoKit {
-    header "fitsio_wrapper.h"
-    header "cfitsio_swift_bridge.h"
-    export *
-    link "cfitsio"
-}
-

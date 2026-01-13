@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import AstrophotoKit
 
 /// Rulers showing image pixel coordinates on the edges of the viewport
 public struct FITSRulersView: View {
