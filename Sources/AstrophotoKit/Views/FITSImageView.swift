@@ -437,7 +437,7 @@ public class FITSImageRenderer: NSObject, MTKViewDelegate {
                 view.needsDisplay = true
             }
         } catch {
-            Logger.swiftfitsio.error("Error creating Metal texture from FITS image: \(error)")
+            Logger.ui.error("Error creating Metal texture from FITS image: \(error)")
         }
     }
     
@@ -467,7 +467,7 @@ public class FITSImageRenderer: NSObject, MTKViewDelegate {
                 view.needsDisplay = true
             }
         } catch {
-            Logger.swiftfitsio.error("Error converting texture to RGBA: \(error)")
+            Logger.ui.error("Error converting texture to RGBA: \(error)")
             // Fall back to original texture
             self.texture = texture
             self.imageWidth = texture.width
