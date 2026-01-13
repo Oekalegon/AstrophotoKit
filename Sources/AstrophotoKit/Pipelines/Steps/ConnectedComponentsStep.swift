@@ -91,13 +91,13 @@ public class ConnectedComponentsStep: PipelineStep {
             commandQueue: commandQueue
         )
         let collectTime = CFAbsoluteTimeGetCurrent() - collectStartTime
-        Logger.swiftfitsio.debug("[ConnectedComponents] Coordinate collection: \(String(format: "%.3f", collectTime))s (\(allCoordinates.count) pixels)")
+        Logger.pipeline.debug("[ConnectedComponents] Coordinate collection: \(String(format: "%.3f", collectTime))s (\(allCoordinates.count) pixels)")
 
         // Then, find connected components from the coordinate list (CPU-based)
         let findStartTime = CFAbsoluteTimeGetCurrent()
         let components = findConnectedComponentsFromCoordinates(allCoordinates)
         let findTime = CFAbsoluteTimeGetCurrent() - findStartTime
-        Logger.swiftfitsio.debug("[ConnectedComponents] Component finding: \(String(format: "%.3f", findTime))s (\(components.count) components)")
+        Logger.pipeline.debug("[ConnectedComponents] Component finding: \(String(format: "%.3f", findTime))s (\(components.count) components)")
 
         // Calculate properties for each component
         let calcStartTime = CFAbsoluteTimeGetCurrent()
@@ -105,7 +105,7 @@ public class ConnectedComponentsStep: PipelineStep {
             calculateComponentProperties(component)
         }
         let calcTime = CFAbsoluteTimeGetCurrent() - calcStartTime
-        Logger.swiftfitsio.debug("[ConnectedComponents] Property calculation: \(String(format: "%.3f", calcTime))s")
+        Logger.pipeline.debug("[ConnectedComponents] Property calculation: \(String(format: "%.3f", calcTime))s")
 
         // Create table data for components with properties
         let componentTableData: [String: Any] = [

@@ -5,7 +5,19 @@ import os
 /// Logger extension for FITSIO operations
 extension Logger {
     /// Logger for FITSIO-related operations
-    public static let swiftfitsio = Logger(subsystem: "com.astrophotokit", category: "fitsio")
+    public static let swiftfitsio = Logger(subsystem: "com.astrophotokit", category: "swift-fitsio")
+    
+    /// Logger for pipeline-related operations
+    public static let pipeline = Logger(subsystem: "com.astrophotokit", category: "astrophotokit-pipeline")
+    
+    /// Logger for filter-related operations
+    public static let filter = Logger(subsystem: "com.astrophotokit", category: "astrophotokit-filter")
+    
+    /// Logger for computer-related operations
+    public static let computers = Logger(subsystem: "com.astrophotokit", category: "astrophotokit-computers")
+    
+    /// Logger for data-related operations
+    public static let data = Logger(subsystem: "com.astrophotokit", category: "astrophotokit-data")
 }
 public struct AstrophotoKit {
     public init() {

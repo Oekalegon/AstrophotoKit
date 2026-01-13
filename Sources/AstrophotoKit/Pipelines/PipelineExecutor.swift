@@ -138,7 +138,7 @@ public class PipelineExecutor {
                         availableData["input_image"] = .processedImage(processedImage)
                     } catch {
                         // If conversion fails, keep original input
-                        Logger.swiftfitsio.notice("Could not convert input_image to ProcessedImage: \(error)")
+                        Logger.pipeline.notice("Could not convert input_image to ProcessedImage: \(error)")
                     }
                 } else if let texture = inputImage.texture {
                     let imageType = ProcessedImage.imageType(from: texture.pixelFormat)
