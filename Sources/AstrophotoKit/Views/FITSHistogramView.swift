@@ -1,6 +1,7 @@
 import SwiftUI
 import Charts
 import Metal
+import os
 
 /// Data point for histogram chart
 private struct HistogramDataPoint: Identifiable {
@@ -65,11 +66,11 @@ public struct FITSHistogramView: View {
         // Debug: Print chart data statistics
         let nonZeroDataPoints = data.filter { $0.count > 0 }
         let maxCount = data.map { $0.count }.max() ?? 0
-        print("Chart data: totalPoints=\(data.count), nonZeroPoints=\(nonZeroDataPoints.count), maxCount=\(maxCount), range=[\(histogram.minValue), \(histogram.maxValue)]")
+        Logger.swiftfitsio.debug("Chart data: totalPoints=\(data.count), nonZeroPoints=\(nonZeroDataPoints.count), maxCount=\(maxCount), range=[\(histogram.minValue), \(histogram.maxValue)]")
         if nonZeroDataPoints.count < 10 {
-            print("  First few non-zero points:")
+            Logger.swiftfitsio.debug("First few non-zero points:")
             for point in nonZeroDataPoints.prefix(5) {
-                print("    intensity=\(point.intensity), count=\(point.count)")
+                Logger.swiftfitsio.debug("intensity=\(point.intensity), count=\(point.count)")
             }
         }
         
@@ -385,9 +386,9 @@ public struct FITSHistogramChart: View {
         }
         
         // Debug: Print histogram computation parameters
-        print("Computing histogram: showFullRange=\(showFullRange), histogramRange=[\(histogramMin), \(histogramMax)], imageRange=[\(imageMinValue), \(imageMaxValue)], bins=\(binsToUse)")
+        Logger.swiftfitsio.debug("Computing histogram: showFullRange=\(showFullRange), histogramRange=[\(histogramMin), \(histogramMax)], imageRange=[\(imageMinValue), \(imageMaxValue)], bins=\(binsToUse)")
         if let blackPoint = blackPoint, let whitePoint = whitePoint {
-            print("  Black point: \(blackPoint), White point: \(whitePoint)")
+            Logger.swiftfitsio.debug("Black point: \(blackPoint), White point: \(whitePoint)")
         }
         
         // Compute histogram on a background thread using Metal for performance
@@ -417,12 +418,12 @@ public struct FITSHistogramChart: View {
             let nonZeroBins = computedHistogram.binCounts.filter { $0 > 0 }.count
             let totalPixels = computedHistogram.totalPixels
             let maxBinCount = computedHistogram.maxBinCount
-            print("Histogram computed: range=[\(computedHistogram.minValue), \(computedHistogram.maxValue)], bins=\(computedHistogram.numBins), nonZeroBins=\(nonZeroBins), totalPixels=\(totalPixels), maxBinCount=\(maxBinCount)")
+            Logger.swiftfitsio.debug("Histogram computed: range=[\(computedHistogram.minValue), \(computedHistogram.maxValue)], bins=\(computedHistogram.numBins), nonZeroBins=\(nonZeroBins), totalPixels=\(totalPixels), maxBinCount=\(maxBinCount)")
             if nonZeroBins < 10 {
                 // Print first few non-zero bins
                 for (index, count) in computedHistogram.binCounts.enumerated() where count > 0 {
                     let pixelValue = computedHistogram.minValue + (Float(index) + 0.5) / Float(computedHistogram.numBins) * (computedHistogram.maxValue - computedHistogram.minValue)
-                    print("  Bin \(index): count=\(count), pixelValue≈\(pixelValue)")
+                    Logger.swiftfitsio.debug("Bin \(index): count=\(count), pixelValue≈\(pixelValue)")
                 }
             }
             

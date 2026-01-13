@@ -1,5 +1,6 @@
 import Foundation
 import Metal
+import os
 
 /// Executes pipelines on images or sets of images
 public class PipelineExecutor {
@@ -137,7 +138,7 @@ public class PipelineExecutor {
                         availableData["input_image"] = .processedImage(processedImage)
                     } catch {
                         // If conversion fails, keep original input
-                        print("Warning: Could not convert input_image to ProcessedImage: \(error)")
+                        Logger.swiftfitsio.notice("Could not convert input_image to ProcessedImage: \(error)")
                     }
                 } else if let texture = inputImage.texture {
                     let imageType = ProcessedImage.imageType(from: texture.pixelFormat)

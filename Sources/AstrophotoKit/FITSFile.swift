@@ -1,5 +1,6 @@
 import Foundation
 import CCFITSIO
+import os
 
 // Direct C function bindings for functions that Swift Package Manager can't see
 // Using Swift naming conventions while mapping to C function names
@@ -40,8 +41,11 @@ public class FITSFile {
             errorText[80] = 0
             // Safely convert to String
             let errorString = String(cString: errorText)
+            Logger.swiftfitsio.error("Failed to open FITS file at \(path): status \(status), \(errorString)")
             throw FITSFileError.cannotOpenFile(path: path, status: status, message: errorString)
         }
+        
+        Logger.swiftfitsio.debug("Opened FITS file at \(path)")
         
         self.fitsfile = file
     }
@@ -65,7 +69,12 @@ public class FITSFile {
         _ = getNumberOfHDUs(file, &numHDUs, &status)
         
         guard status == 0 else {
-            throw FITSFileError.readError(status: status)
+            var errorText = [CChar](repeating: 0, count: 81)
+            getFITSErrorStatus(status, &errorText)
+            errorText[80] = 0
+            let errorString = String(cString: errorText)
+            Logger.swiftfitsio.error("Error reading number of HDUs: status \(status), \(errorString)")
+            throw FITSFileError.readError(status: status, message: errorString)
         }
         
         return Int(numHDUs)
@@ -76,7 +85,7 @@ public class FITSFile {
 public enum FITSFileError: Error, LocalizedError {
     case cannotOpenFile(path: String, status: Int32, message: String)
     case fileNotOpen
-    case readError(status: Int32)
+    case readError(status: Int32, message: String)
     case unsupportedDataType(bitpix: Int32)
     
     public var errorDescription: String? {
@@ -85,8 +94,8 @@ public enum FITSFileError: Error, LocalizedError {
             return "Cannot open FITS file at \(path): status \(status), \(message)"
         case .fileNotOpen:
             return "FITS file is not open"
-        case .readError(let status):
-            return "Error reading FITS file: status \(status)"
+        case .readError(let status, let message):
+            return "Error reading FITS file: status \(status), \(message)"
         case .unsupportedDataType(let bitpix):
             return "Unsupported data type: bitpix = \(bitpix)"
         }

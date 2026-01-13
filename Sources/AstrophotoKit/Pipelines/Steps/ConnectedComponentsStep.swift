@@ -1,5 +1,6 @@
 import Foundation
 import Metal
+import os
 
 /// Structure to represent a 2D coordinate
 public struct PixelCoordinate {
@@ -90,13 +91,13 @@ public class ConnectedComponentsStep: PipelineStep {
             commandQueue: commandQueue
         )
         let collectTime = CFAbsoluteTimeGetCurrent() - collectStartTime
-        print("[ConnectedComponents] Coordinate collection: \(String(format: "%.3f", collectTime))s (\(allCoordinates.count) pixels)")
+        Logger.swiftfitsio.debug("[ConnectedComponents] Coordinate collection: \(String(format: "%.3f", collectTime))s (\(allCoordinates.count) pixels)")
 
         // Then, find connected components from the coordinate list (CPU-based)
         let findStartTime = CFAbsoluteTimeGetCurrent()
         let components = findConnectedComponentsFromCoordinates(allCoordinates)
         let findTime = CFAbsoluteTimeGetCurrent() - findStartTime
-        print("[ConnectedComponents] Component finding: \(String(format: "%.3f", findTime))s (\(components.count) components)")
+        Logger.swiftfitsio.debug("[ConnectedComponents] Component finding: \(String(format: "%.3f", findTime))s (\(components.count) components)")
 
         // Calculate properties for each component
         let calcStartTime = CFAbsoluteTimeGetCurrent()
@@ -104,7 +105,7 @@ public class ConnectedComponentsStep: PipelineStep {
             calculateComponentProperties(component)
         }
         let calcTime = CFAbsoluteTimeGetCurrent() - calcStartTime
-        print("[ConnectedComponents] Property calculation: \(String(format: "%.3f", calcTime))s")
+        Logger.swiftfitsio.debug("[ConnectedComponents] Property calculation: \(String(format: "%.3f", calcTime))s")
 
         // Create table data for components with properties
         let componentTableData: [String: Any] = [

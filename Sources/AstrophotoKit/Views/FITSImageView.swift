@@ -8,6 +8,7 @@
 import SwiftUI
 import Metal
 import MetalKit
+import os
 import AppKit
 
 /// Display mode for FITS images
@@ -436,7 +437,7 @@ public class FITSImageRenderer: NSObject, MTKViewDelegate {
                 view.needsDisplay = true
             }
         } catch {
-            print("Error creating Metal texture from FITS image: \(error)")
+            Logger.swiftfitsio.error("Error creating Metal texture from FITS image: \(error)")
         }
     }
     
@@ -466,7 +467,7 @@ public class FITSImageRenderer: NSObject, MTKViewDelegate {
                 view.needsDisplay = true
             }
         } catch {
-            print("Error converting texture to RGBA: \(error)")
+            Logger.swiftfitsio.error("Error converting texture to RGBA: \(error)")
             // Fall back to original texture
             self.texture = texture
             self.imageWidth = texture.width

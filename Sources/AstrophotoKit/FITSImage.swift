@@ -2,6 +2,7 @@ import Foundation
 import Metal
 import MetalKit
 import CCFITSIO
+import os
 
 /// Shared utility for converting screen coordinates to image pixel coordinates
 public enum FITSCoordinateConverter {
@@ -74,7 +75,7 @@ func readKeyAtIndex(_ fptr: OpaquePointer?, _ index: Int32, _ keyName: UnsafeMut
 func getImageParameters(_ fptr: OpaquePointer?, _ maxDimensions: Int32, _ bitpix: UnsafeMutablePointer<Int32>, _ naxis: UnsafeMutablePointer<Int32>, _ naxes: UnsafeMutablePointer<Int64>, _ status: UnsafeMutablePointer<Int32>) -> Int32
 
 @_silgen_name("fits_read_img_wrapper")
-func readImageData(_ fptr: OpaquePointer?, _ dataType: Int32, _ firstPixel: UnsafeMutablePointer<Int64>, _ numElements: UnsafeMutablePointer<Int64>, _ nullValue: UnsafeMutablePointer<Float32>?, _ array: UnsafeMutablePointer<Float32>, _ anyNull: UnsafeMutablePointer<Int32>, _ status: UnsafeMutablePointer<Int32>) -> Int32
+func readImageData(_ fptr: OpaquePointer?, _ dataType: Int32, _ naxis: Int32, _ firstPixel: UnsafeMutablePointer<Int64>, _ numElements: UnsafeMutablePointer<Int64>, _ nullValue: UnsafeMutablePointer<Float32>?, _ array: UnsafeMutablePointer<Float32>, _ anyNull: UnsafeMutablePointer<Int32>, _ status: UnsafeMutablePointer<Int32>) -> Int32
 
 /// Represents a FITS image with metadata and pixel data
 public struct FITSImage: Equatable {
@@ -205,7 +206,12 @@ extension FITSFile {
         _ = moveToHDUPointer(file, Int32(hduNumber + 1), &hdutype, &status)  // CFITSIO uses 1-based indexing
         
         guard status == 0 else {
-            throw FITSFileError.readError(status: status)
+            var errorText = [CChar](repeating: 0, count: 81)
+            getFITSErrorStatus(status, &errorText)
+            errorText[80] = 0
+            let errorString = String(cString: errorText)
+            Logger.swiftfitsio.error("Error moving to HDU \(hduNumber): status \(status), \(errorString)")
+            throw FITSFileError.readError(status: status, message: errorString)
         }
     }
     
@@ -224,7 +230,12 @@ extension FITSFile {
         var nmore: Int32 = 0
         _ = getHeaderSpace(file, &nkeys, &nmore, &status)
         guard status == 0 else {
-            throw FITSFileError.readError(status: status)
+            var errorText = [CChar](repeating: 0, count: 81)
+            getFITSErrorStatus(status, &errorText)
+            errorText[80] = 0
+            let errorString = String(cString: errorText)
+            Logger.swiftfitsio.error("Error reading header space: status \(status), \(errorString)")
+            throw FITSFileError.readError(status: status, message: errorString)
         }
         
         // Read each keyword
@@ -272,9 +283,11 @@ extension FITSFile {
     /// - Returns: Tuple containing dimensions, pixel data, raw data, bitpix, and original value range
     public func readImage() throws -> (width: Int, height: Int, depth: Int, pixels: [Float32], rawData: Data, bitpix: Int32, minVal: Float32, maxVal: Float32) {
         guard let file = fitsfile else {
+            Logger.swiftfitsio.error("Attempted to read image from closed FITS file")
             throw FITSFileError.fileNotOpen
         }
         
+        Logger.swiftfitsio.debug("Reading FITS image data")
         var status: Int32 = 0
         var bitpix: Int32 = 0
         var naxis: Int32 = 0
@@ -286,12 +299,19 @@ extension FITSFile {
         _ = getImageParameters(file, 3, &bitpix, &naxis, &naxesArray, &status)
         naxes = naxesArray
         guard status == 0 else {
-            throw FITSFileError.readError(status: status)
+            var errorText = [CChar](repeating: 0, count: 81)
+            getFITSErrorStatus(status, &errorText)
+            errorText[80] = 0
+            let errorString = String(cString: errorText)
+            Logger.swiftfitsio.error("Error getting image parameters: status \(status), \(errorString)")
+            throw FITSFileError.readError(status: status, message: errorString)
         }
         
         let width = Int(naxes[0])
         let height = naxis > 1 ? Int(naxes[1]) : 1
         let depth = naxis > 2 ? Int(naxes[2]) : 1
+        
+        Logger.swiftfitsio.debug("Image dimensions: \(width)x\(height)x\(depth), bitpix=\(bitpix), naxis=\(naxis)")
         
         // Calculate total pixels
         var totalPixels: Int64 = 1
@@ -306,13 +326,24 @@ extension FITSFile {
         var anynull: Int32 = 0
         
         // Use TFLOAT (42) to read as float - CFITSIO handles conversion
+        // CFITSIO expects firstPixel and numElements as arrays (one element per dimension)
+        // For 2D image: firstPixel = [1, 1], numElements = [width, height]
         let TFLOAT: Int32 = 42
-        var firstPixel: Int64 = 1
-        var numElements: Int64 = totalPixels
-        _ = readImageData(file, TFLOAT, &firstPixel, &numElements, &nullval, &floatBuffer, &anynull, &status)
+        var firstPixelArray = [Int64](repeating: 1, count: Int(naxis))  // Start at pixel 1,1,1... (1-based)
+        var numElementsArray = [Int64](repeating: 0, count: Int(naxis))
+        for i in 0..<Int(naxis) {
+            numElementsArray[i] = naxes[i]  // Read all pixels in each dimension
+        }
+        Logger.swiftfitsio.debug("Reading image: firstPixel=\(firstPixelArray), numElements=\(numElementsArray), naxis=\(naxis), totalPixels=\(totalPixels)")
+        _ = readImageData(file, TFLOAT, naxis, &firstPixelArray, &numElementsArray, &nullval, &floatBuffer, &anynull, &status)
         
         guard status == 0 else {
-            throw FITSFileError.readError(status: status)
+            var errorText = [CChar](repeating: 0, count: 81)
+            getFITSErrorStatus(status, &errorText)
+            errorText[80] = 0
+            let errorString = String(cString: errorText)
+            Logger.swiftfitsio.error("Error reading image data: status \(status), \(errorString)")
+            throw FITSFileError.readError(status: status, message: errorString)
         }
         
         // Store raw data for reference
@@ -324,6 +355,8 @@ extension FITSFile {
         let range = maxVal - minVal
         let normalizedPixels = range > 0 ? floatBuffer.map { ($0 - minVal) / range } : floatBuffer
         
+        Logger.swiftfitsio.debug("Successfully read image: \(normalizedPixels.count) pixels, value range [\(minVal), \(maxVal)]")
+        
         return (width, height, depth, normalizedPixels, rawData, bitpix, minVal, maxVal)
     }
     
@@ -331,17 +364,22 @@ extension FITSFile {
     /// - Parameter hduNumber: Optional HDU number (nil = current HDU)
     /// - Returns: FITSImage structure
     public func readFITSImage(hduNumber: Int? = nil) throws -> FITSImage {
+        Logger.swiftfitsio.debug("Reading FITS image (HDU: \(hduNumber?.description ?? "current"))")
+        
         if let hdu = hduNumber {
             try moveToHDU(hdu)
         }
         
         // Read metadata
         let metadata = try readHeader()
+        Logger.swiftfitsio.debug("Read \(metadata.count) header keywords")
         
         // Read image data
         let (width, height, depth, pixels, rawData, bitpix, minVal, maxVal) = try readImage()
         
         let dataType = try FITSDataType(bitpix: bitpix)
+        
+        Logger.swiftfitsio.debug("Successfully read FITS image: \(width)x\(height)x\(depth), type=\(dataType.description)")
         
         return FITSImage(
             width: width,
@@ -376,7 +414,7 @@ extension FITSImage {
         descriptor.usage = [.shaderRead, .shaderWrite]
         
         guard let texture = device.makeTexture(descriptor: descriptor) else {
-            throw FITSFileError.readError(status: -1)  // Use existing error type
+            throw FITSFileError.readError(status: -1, message: "Failed to create Metal texture")
         }
         
         let region = MTLRegion(origin: MTLOrigin(x: 0, y: 0, z: 0),
@@ -579,9 +617,8 @@ extension FITSImage {
         panOffset: SIMD2<Float>,
         aspectRatio: SIMD2<Float>
     ) {
-        print("🔍 screenToImagePixel:")
-        print("  Input: normalized=(\(normalizedX), \(normalizedY)), zoom=\(zoom)")
-        print("  panOffset=(\(panOffset.x), \(panOffset.y)), aspectRatio=(\(aspectRatio.x), \(aspectRatio.y))")
+        Logger.swiftfitsio.debug("screenToImagePixel: Input: normalized=(\(normalizedX), \(normalizedY)), zoom=\(zoom)")
+        Logger.swiftfitsio.debug("panOffset=(\(panOffset.x), \(panOffset.y)), aspectRatio=(\(aspectRatio.x), \(aspectRatio.y))")
         
         // Use shared coordinate converter
         guard let texCoord = FITSCoordinateConverter.screenToTextureCoord(
@@ -591,11 +628,11 @@ extension FITSImage {
             panOffset: panOffset,
             aspectRatio: aspectRatio
         ) else {
-            print("  ❌ Out of bounds (texture coords)")
+            Logger.swiftfitsio.notice("Out of bounds (texture coords)")
             return
         }
         
-        print("  🔧 FITSCoordinateConverter:")
+        Logger.swiftfitsio.debug("FITSCoordinateConverter:")
         let screenPos = SIMD2<Float>(normalizedX, normalizedY)
         let screenMinusPan = SIMD2<Float>(
             screenPos.x - panOffset.x,
@@ -605,44 +642,44 @@ extension FITSImage {
             screenMinusPan.x / zoom / aspectRatio.x,
             screenMinusPan.y / zoom / aspectRatio.y
         )
-        print("    screenPos=(\(screenPos.x), \(screenPos.y))")
-        print("    panOffset=(\(panOffset.x), \(panOffset.y)) [y is stored inverted]")
-        print("    zoom=\(zoom), aspectRatio=(\(aspectRatio.x), \(aspectRatio.y))")
-        print("    screenMinusPan=(\(screenMinusPan.x), \(screenMinusPan.y))")
-        print("    vertexPos=(\(vertexPos.x), \(vertexPos.y))")
-        print("    texCoord=(\(texCoord.x), \(texCoord.y))")
+        Logger.swiftfitsio.debug("screenPos=(\(screenPos.x), \(screenPos.y))")
+        Logger.swiftfitsio.debug("panOffset=(\(panOffset.x), \(panOffset.y)) [y is stored inverted]")
+        Logger.swiftfitsio.debug("zoom=\(zoom), aspectRatio=(\(aspectRatio.x), \(aspectRatio.y))")
+        Logger.swiftfitsio.debug("screenMinusPan=(\(screenMinusPan.x), \(screenMinusPan.y))")
+        Logger.swiftfitsio.debug("vertexPos=(\(vertexPos.x), \(vertexPos.y))")
+        Logger.swiftfitsio.debug("texCoord=(\(texCoord.x), \(texCoord.y))")
         
         // Convert texture coordinates to image pixel coordinates
         let pixelXFloat = texCoord.x * Float(width)
         let pixelYFloat = texCoord.y * Float(height)
-        print("  pixelFloat=(\(pixelXFloat), \(pixelYFloat)), imageSize=(\(width), \(height))")
+        Logger.swiftfitsio.debug("pixelFloat=(\(pixelXFloat), \(pixelYFloat)), imageSize=(\(width), \(height))")
         
         // Convert to integer pixel coordinates
         let pixelX = Int(floor(pixelXFloat))
         let pixelY = Int(floor(pixelYFloat))
-        print("  pixelCoords=(\(pixelX), \(pixelY))")
+        Logger.swiftfitsio.debug("pixelCoords=(\(pixelX), \(pixelY))")
         
         // Final bounds check
         guard pixelX >= 0 && pixelX < width && pixelY >= 0 && pixelY < height else {
-            print("  ❌ Out of bounds (pixel coords)")
+            Logger.swiftfitsio.notice("Out of bounds (pixel coords)")
             return
         }
         
         // Get pixel value
-        print("📊 getPixelValue: x=\(pixelX), y=\(pixelY), imageSize=(\(width), \(height))")
+        Logger.swiftfitsio.debug("getPixelValue: x=\(pixelX), y=\(pixelY), imageSize=(\(width), \(height))")
         let index = pixelY * width + pixelX
-        print("  index=\(index), pixelData.count=\(pixelData.count)")
+        Logger.swiftfitsio.debug("index=\(index), pixelData.count=\(pixelData.count)")
         
         guard index < pixelData.count else {
-            print("  ❌ Index out of range")
+            Logger.swiftfitsio.error("Index out of range")
             return
         }
         
         let normalizedValue = pixelData[index]
         let range = originalMaxValue - originalMinValue
         let originalValue = range > 0 ? normalizedValue * range + originalMinValue : originalMinValue
-        print("  normalizedValue=\(normalizedValue), range=\(range)")
-        print("  originalValue=\(originalValue) (min=\(originalMinValue), max=\(originalMaxValue))")
+        Logger.swiftfitsio.debug("normalizedValue=\(normalizedValue), range=\(range)")
+        Logger.swiftfitsio.debug("originalValue=\(originalValue) (min=\(originalMinValue), max=\(originalMaxValue))")
     }
 }
 

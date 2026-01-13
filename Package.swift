@@ -27,10 +27,21 @@ let package = Package(
                 .apt(["libcfitsio-dev"])
             ]
         ),
-        // Swift target that depends on the C library
+        // C wrapper target that implements wrapper functions
+        .target(
+            name: "CCFITSIOWrapper",
+            dependencies: ["CCFITSIO"],
+            path: "Sources/CCFITSIO",
+            sources: ["cfitsio_wrapper.c"],
+            publicHeadersPath: ".",
+            linkerSettings: [
+                .linkedLibrary("cfitsio")
+            ]
+        ),
+        // Swift target that depends on the C library and wrapper
         .target(
             name: "AstrophotoKit",
-            dependencies: ["CCFITSIO"],
+            dependencies: ["CCFITSIO", "CCFITSIOWrapper"],
             resources: [
                 .process("Shaders")  // Include Metal shader source files as resources
             ]),

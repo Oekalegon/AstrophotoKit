@@ -1,7 +1,12 @@
 import Metal
 import MetalKit
+import os
 
-/// A library package for Astrophoto functionality.
+/// Logger extension for FITSIO operations
+extension Logger {
+    /// Logger for FITSIO-related operations
+    public static let swiftfitsio = Logger(subsystem: "com.astrophotokit", category: "fitsio")
+}
 public struct AstrophotoKit {
     public init() {
     }
@@ -55,7 +60,7 @@ public struct AstrophotoKit {
         ]
         
         for bundle in bundlesToTry.compactMap({ $0 }) {
-            print("AstrophotoKit: Trying bundle at \(bundle.bundlePath)")
+            Logger.swiftfitsio.debug("Trying bundle at \(bundle.bundlePath)")
             
             for shaderName in shaderFiles {
                 // Check if we already have this shader
@@ -67,7 +72,7 @@ public struct AstrophotoKit {
                 if let shaderURL = bundle.url(forResource: shaderName, withExtension: "metal", subdirectory: "Shaders"),
                    let shaderSource = try? String(contentsOf: shaderURL, encoding: .utf8) {
                     shaderSources.append(shaderSource)
-                    print("AstrophotoKit: Loaded \(shaderName).metal from Shaders subdirectory")
+                    Logger.swiftfitsio.debug("Loaded \(shaderName).metal from Shaders subdirectory")
                     continue
                 }
                 
@@ -75,7 +80,7 @@ public struct AstrophotoKit {
                 if let shaderURL = bundle.url(forResource: shaderName, withExtension: "metal"),
                    let shaderSource = try? String(contentsOf: shaderURL, encoding: .utf8) {
                     shaderSources.append(shaderSource)
-                    print("AstrophotoKit: Loaded \(shaderName).metal from bundle root")
+                    Logger.swiftfitsio.debug("Loaded \(shaderName).metal from bundle root")
                     continue
                 }
                 
@@ -85,7 +90,7 @@ public struct AstrophotoKit {
                     if FileManager.default.fileExists(atPath: shaderPath),
                        let shaderSource = try? String(contentsOfFile: shaderPath, encoding: .utf8) {
                         shaderSources.append(shaderSource)
-                        print("AstrophotoKit: Loaded \(shaderName).metal from \(shaderPath)")
+                        Logger.swiftfitsio.debug("Loaded \(shaderName).metal from \(shaderPath)")
                         continue
                     }
                     
@@ -94,7 +99,7 @@ public struct AstrophotoKit {
                     if FileManager.default.fileExists(atPath: shaderPath2),
                        let shaderSource = try? String(contentsOfFile: shaderPath2, encoding: .utf8) {
                         shaderSources.append(shaderSource)
-                        print("AstrophotoKit: Loaded \(shaderName).metal from \(shaderPath2)")
+                        Logger.swiftfitsio.debug("Loaded \(shaderName).metal from \(shaderPath2)")
                         continue
                     }
                 }
@@ -109,11 +114,11 @@ public struct AstrophotoKit {
         // Combine all shader sources (Metal can compile multiple files combined)
         if !shaderSources.isEmpty {
             let combined = shaderSources.joined(separator: "\n")
-            print("AstrophotoKit: Successfully loaded \(shaderSources.count) shader file(s), total size: \(combined.count) characters")
+            Logger.swiftfitsio.debug("Successfully loaded \(shaderSources.count) shader file(s), total size: \(combined.count) characters")
             return combined
         }
         
-        print("AstrophotoKit: Failed to load any shader files from bundles")
+        Logger.swiftfitsio.notice("Failed to load any shader files from bundles")
         return nil
     }
     
@@ -124,8 +129,8 @@ public struct AstrophotoKit {
         // Bundle.module is available when resources are included in Package.swift
         // This is the preferred method for Swift packages
         if let moduleBundle = Bundle.module as Bundle? {
-            print("AstrophotoKit: Found bundle via Bundle.module at \(moduleBundle.bundlePath)")
-            print("AstrophotoKit: Bundle resource path: \(moduleBundle.resourcePath ?? "nil")")
+            Logger.swiftfitsio.debug("Found bundle via Bundle.module at \(moduleBundle.bundlePath)")
+            Logger.swiftfitsio.debug("Bundle resource path: \(moduleBundle.resourcePath ?? "nil")")
             return moduleBundle
         }
         #endif
@@ -134,8 +139,8 @@ public struct AstrophotoKit {
         // Use FITSFile class which is in this package
         if let fitsFileClass = NSClassFromString("AstrophotoKit.FITSFile") {
             let bundle = Bundle(for: fitsFileClass)
-            print("AstrophotoKit: Found bundle via FITSFile class at \(bundle.bundlePath)")
-            print("AstrophotoKit: Bundle resource path: \(bundle.resourcePath ?? "nil")")
+            Logger.swiftfitsio.debug("Found bundle via FITSFile class at \(bundle.bundlePath)")
+            Logger.swiftfitsio.debug("Bundle resource path: \(bundle.resourcePath ?? "nil")")
             return bundle
         }
         
@@ -145,13 +150,13 @@ public struct AstrophotoKit {
             // Check if this bundle is related to AstrophotoKit
             if bundlePath.contains("AstrophotoKit") ||
                bundle.bundleIdentifier?.contains("AstrophotoKit") == true {
-                print("AstrophotoKit: Found bundle in allBundles at \(bundlePath)")
-                print("AstrophotoKit: Bundle resource path: \(bundle.resourcePath ?? "nil")")
+                Logger.swiftfitsio.debug("Found bundle in allBundles at \(bundlePath)")
+                Logger.swiftfitsio.debug("Bundle resource path: \(bundle.resourcePath ?? "nil")")
                 return bundle
             }
         }
         
-        print("AstrophotoKit: Could not find package bundle in \(Bundle.allBundles.count) loaded bundles")
+        Logger.swiftfitsio.notice("Could not find package bundle in \(Bundle.allBundles.count) loaded bundles")
         return nil
     }
 }

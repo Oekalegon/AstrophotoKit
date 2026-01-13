@@ -1,6 +1,7 @@
 import Foundation
 import Metal
 import MetalKit
+import os
 
 /// Represents histogram data for a FITS image
 public struct Histogram {
@@ -109,7 +110,7 @@ public class HistogramComputer {
         // Create buffers for histogram min/max values (the range we want to bin)
         var histogramMinValueFloat = Float(minValue)
         var histogramMaxValueFloat = Float(maxValue)
-        print("Metal shader params: imageRange=[\(imageMinValueFloat), \(imageMaxValueFloat)], histogramRange=[\(histogramMinValueFloat), \(histogramMaxValueFloat)], numBins=\(numBins)")
+        Logger.swiftfitsio.debug("Metal shader params: imageRange=[\(imageMinValueFloat), \(imageMaxValueFloat)], histogramRange=[\(histogramMinValueFloat), \(histogramMaxValueFloat)], numBins=\(numBins)")
         guard let histogramMinValueBuffer = device.makeBuffer(bytes: &histogramMinValueFloat, length: MemoryLayout<Float>.size, options: []),
               let histogramMaxValueBuffer = device.makeBuffer(bytes: &histogramMaxValueFloat, length: MemoryLayout<Float>.size, options: []) else {
             throw HistogramError.couldNotCreateBuffer
@@ -161,15 +162,15 @@ public class HistogramComputer {
         // Debug: Print histogram statistics
         let totalCount = binCounts.reduce(0, +)
         let nonZeroBins = binCounts.filter { $0 > 0 }.count
-        print("Metal histogram result: totalCount=\(totalCount), nonZeroBins=\(nonZeroBins), first 10 bins: \(Array(binCounts.prefix(10)))")
+        Logger.swiftfitsio.debug("Metal histogram result: totalCount=\(totalCount), nonZeroBins=\(nonZeroBins), first 10 bins: \(Array(binCounts.prefix(10)))")
         
         // Debug: Print all non-zero bins with their pixel values
         if nonZeroBins < 50 {
-            print("All non-zero bins:")
+            Logger.swiftfitsio.debug("All non-zero bins:")
             for (index, count) in binCounts.enumerated() where count > 0 {
                 let normalizedBinCenter = (Float(index) + 0.5) / Float(numBins)
                 let pixelValue = Float(minValue) + normalizedBinCenter * (Float(maxValue) - Float(minValue))
-                print("  Bin \(index): count=\(count), pixelValue≈\(pixelValue)")
+                Logger.swiftfitsio.debug("Bin \(index): count=\(count), pixelValue≈\(pixelValue)")
             }
         }
         
