@@ -8,9 +8,29 @@ A Swift package for astronomical image processing, including FITS file support a
 - **Metal Shaders**: Support for custom Metal shaders for GPU-accelerated image processing
 - **Swift API**: Clean, Swifty interface for astronomical data processing
 
+## Prerequisites
+
+CFITSIO must be installed on your system before building AstrophotoKit.
+
+### macOS
+
+Install CFITSIO using Homebrew:
+
+```bash
+brew install cfitsio
+```
+
+### Linux
+
+Install CFITSIO development libraries:
+
+```bash
+sudo apt-get install libcfitsio-dev
+```
+
 ## Installation
 
-Add AstrophotoKit to your project using Swift Package Manager:
+Once CFITSIO is installed, add AstrophotoKit to your project using Swift Package Manager:
 
 ```swift
 dependencies: [
@@ -56,15 +76,11 @@ let library = AstrophotoKit.makeShaderLibrary(device: device)
 
 ## Requirements
 
-- macOS 13.0+
+- macOS 14.0+ or Linux
 - Swift 5.9+
-- Xcode 15.0+
+- Xcode 15.0+ (macOS only)
+- CFITSIO library (installed via Homebrew on macOS or apt on Linux)
 
 ## License
 
 See LICENSE file for details.
-
-## Note for Package Maintainers
-
-This package includes CFITSIO source code. If you're setting up the package for development, see `SETUP_CFITSIO.md` for instructions on downloading CFITSIO.
-
