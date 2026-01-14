@@ -1,0 +1,284 @@
+id: star_detection
+name: Star Detection Pipeline
+description: Detects stars in astronomical images using Gaussian blur, background estimation, thresholding, erosion, dilation, connected components analysis, quads, and draws ellipses around detected stars
+
+requiredInputs:
+  - input_frame
+
+optionalInputs:
+  - blur_radius
+  - threshold_value
+  - erosion_kernel_size
+  - dilation_kernel_size
+  - max_stars
+  - min_distance_percent
+  - k_neighbors
+  - ellipse_color_r
+  - ellipse_color_g
+  - ellipse_color_b
+  - ellipse_width
+  - quad_color_r
+  - quad_color_g
+  - quad_color_b
+  - quad_width
+
+steps:
+  - id: grayscale
+    type: grayscale
+    name: Grayscale
+    description: Converts the input frame to grayscale (if it is not already)
+    dataInputs:
+      - name: input_frame
+        from: input_frame
+        metadata_restrictions:
+          frame_type:
+            - light
+        description: The input frame to convert to grayscale
+    parameters: []
+    outputs:
+      - name: grayscale_frame
+        description: Grayscale version of the input frame
+        metadata:
+          processing_stage: "color_conversion"
+          image_type: "grayscale"
+    backend: gpu
+
+  - id: blur
+    type: gaussian_blur
+    name: Gaussian Blur
+    description: Applies Gaussian blur to reduce noise and smooth the image
+    dataInputs:
+      - name: input_frame
+        from: grayscale.grayscale_frame
+        metadata_restrictions:
+          frame_type:
+            - light
+        description: The input frame to blur (must be a light frame)
+    parameters:
+      - name: radius
+        from: blur_radius
+        default_value: "3.0"
+        description: Blur radius in pixels
+    outputs:
+      - name: blurred_frame
+        description: Gaussian-blurred version of the input frame
+        metadata:
+          processing_stage: "noise_reduction"
+          quality_metric: "smoothed"
+          image_type: "grayscale"
+    backend: gpu
+
+  - id: background
+    type: background_estimation
+    name: Background Estimation
+    description: Estimates and subtracts the background from the image
+    dataInputs:
+      - name: input_frame
+        from: blur.blurred_frame
+        description: The blurred frame to estimate background from
+    parameters: []
+    outputs:
+      - name: background_frame
+        description: Estimated background frame
+        metadata:
+          processing_stage: "background_estimation"
+          data_type: "background_model"
+          image_type: "grayscale"
+      - name: background_subtracted_frame
+        description: Frame with background subtracted
+        metadata:
+          processing_stage: "background_subtraction"
+          quality_metric: "background_removed"
+          image_type: "grayscale"
+      - name: background_level
+        description: Background level scalar value
+        metadata:
+          processing_stage: "background_estimation"
+          data_type: "scalar"
+          unit: "ADU"
+    backend: gpu
+
+  - id: threshold
+    type: threshold
+    name: Threshold
+    description: Creates a binary mask of potential stars
+    dataInputs:
+      - name: input_frame
+        from: background.background_subtracted_frame
+        description: The background-subtracted frame to threshold
+    parameters:
+      - name: threshold_value
+        from: threshold_value
+        default_value: "3.0"
+        description: Threshold value (sigma multiplier)
+      - name: method
+        default_value: "sigma"
+        description: Threshold method
+    outputs:
+      - name: thresholded_frame
+        description: Binary mask of potential stars
+        metadata:
+          processing_stage: "thresholding"
+          image_type: "binary"
+    backend: gpu
+
+  - id: erosion
+    type: erosion
+    name: Binary Erosion
+    description: Applies binary erosion to remove noise
+    dataInputs:
+      - name: input_frame
+        from: threshold.thresholded_frame
+        description: The thresholded frame to erode
+    parameters:
+      - name: kernel_size
+        from: erosion_kernel_size
+        default_value: "3"
+        description: Erosion kernel size
+    outputs:
+      - name: eroded_frame
+        description: Eroded binary mask
+        metadata:
+          processing_stage: "morphological_processing"
+          operation: "erosion"
+          image_type: "binary"
+    backend: gpu
+
+  - id: dilation
+    type: dilation
+    name: Binary Dilation
+    description: Applies binary dilation to restore star shapes
+    dataInputs:
+      - name: input_frame
+        from: erosion.eroded_frame
+        description: The eroded frame to dilate
+    parameters:
+      - name: kernel_size
+        from: dilation_kernel_size
+        default_value: "3"
+        description: Dilation kernel size
+    outputs:
+      - name: dilated_frame
+        description: Dilated binary mask
+        metadata:
+          processing_stage: "morphological_processing"
+          operation: "dilation"
+          image_type: "binary"
+    backend: gpu
+
+  - id: connected_components
+    type: connected_components
+    name: Connected Components
+    description: Identifies connected components (stars)
+    dataInputs:
+      - name: input_frame
+        from: dilation.dilated_frame
+        description: The dilated frame to analyze
+    parameters: []
+    outputs:
+      - name: pixel_coordinates
+        description: Pixel coordinates of detected stars
+        metadata:
+          processing_stage: "star_detection"
+          data_type: "table"
+          table_type: "star_catalog"
+          catalog_format: "pixel_coordinates"
+      - name: coordinate_count
+        description: Number of detected stars
+        metadata:
+          processing_stage: "star_detection"
+          data_type: "scalar"
+          unit: "count"
+    backend: cpu
+
+  - id: quads
+    type: quads
+    name: Quads
+    description: Groups stars into quads for matching
+    dataInputs: []
+    parameters:
+      - name: pixel_coordinates
+        from: connected_components.pixel_coordinates
+        description: Pixel coordinates from connected components
+      - name: max_stars
+        from: max_stars
+        description: Maximum number of stars to process
+      - name: min_distance_percent
+        from: min_distance_percent
+        description: Minimum distance between stars (as percentage)
+      - name: k_neighbors
+        from: k_neighbors
+        description: Number of neighbors for quad formation
+    outputs:
+      - name: quads
+        description: Quad groupings of stars for matching
+        metadata:
+          processing_stage: "quad_formation"
+          data_type: "table"
+          table_type: "quad_catalog"
+          matching_algorithm: "k_nearest_neighbors"
+    backend: cpu
+
+  - id: overlay
+    type: star_detection_overlay
+    name: Star Detection Overlay
+    description: Draws ellipses and quads around detected stars
+    dataInputs:
+      - name: input_frame
+        from: input_frame
+        metadata_restrictions:
+          frame_type:
+            - light
+          filter:
+            - R
+            - G
+            - B
+            - L
+          exposure_time:
+            min: 60.0
+            max: 600.0
+        description: The original input frame to annotate (light frame with specific filter and exposure time range)
+    parameters:
+      - name: pixel_coordinates
+        from: connected_components.pixel_coordinates
+        description: Pixel coordinates of detected stars
+      - name: quads
+        from: quads.quads
+        description: Quad groupings
+      - name: ellipse_color_r
+        from: ellipse_color_r
+        description: Ellipse color red component
+      - name: ellipse_color_g
+        from: ellipse_color_g
+        description: Ellipse color green component
+      - name: ellipse_color_b
+        from: ellipse_color_b
+        description: Ellipse color blue component
+      - name: ellipse_width
+        from: ellipse_width
+        description: Ellipse line width
+      - name: quad_color_r
+        from: quad_color_r
+        description: Quad color red component
+      - name: quad_color_g
+        from: quad_color_g
+        description: Quad color green component
+      - name: quad_color_b
+        from: quad_color_b
+        description: Quad color blue component
+      - name: quad_width
+        from: quad_width
+        description: Quad line width
+    outputs:
+      - name: annotated_frame
+        description: Original frame annotated with detected stars and quads
+        metadata:
+          processing_stage: "visualization"
+          image_type: "rgb"
+          annotations:
+            - type: "ellipse"
+              purpose: "star_marker"
+            - type: "quad"
+              purpose: "matching_guide"
+          preserve_source_metadata: true
+    backend: gpu

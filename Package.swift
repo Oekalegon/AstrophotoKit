@@ -16,6 +16,7 @@ let package = Package(
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
+        .package(url: "https://github.com/jpsim/Yams.git", from: "5.0.0")
     ],
     targets: [
         // System CFITSIO library (Homebrew / apt)
@@ -41,7 +42,10 @@ let package = Package(
         // Swift target that depends on the C library and wrapper
         .target(
             name: "AstrophotoKit",
-            dependencies: ["CCFITSIO", "CCFITSIOWrapper"],
+            dependencies: ["CCFITSIO", "CCFITSIOWrapper", "Yams"],
+            exclude: [
+                "Pipelines/_archive_v1"  // Exclude archived pipeline code from compilation to prevent naming conflicts
+            ],
             resources: [
                 .process("Shaders")  // Include Metal shader source files as resources
             ]),
