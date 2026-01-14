@@ -1,3 +1,5 @@
+<img src="docs/assets/images/astrophotokit.png" alt="AstrophotoKit logo" width="200" height="200" style="display: block; margin: auto;"/>
+
 # AstrophotoKit
 
 A Swift package for astronomical image processing, including FITS file support and Metal shader integration.
