@@ -32,7 +32,94 @@ To enable data reuse and proper tracking, each data object must maintain metadat
 
 Within a pipeline definition, the data flow between steps is explicitly specified: each step declares which outputs from previous steps serve as its inputs, and how those inputs map to the step's parameters. For example, in a star detection pipeline, the first step applies a Gaussian blur to the input frame. The blurred frame output from this step is then explicitly designated as the input to the next step, which computes the local median within a 50×50 pixel window to generate a background estimation frame (representing the frame without stellar sources).
 
-The configuration of a pipeline should be separate from the code. In AstophotoKit, pipeline configuration is defined in YAML files.
+The configuration of a pipeline should be separate from the code. In AstrophotoKit, pipeline configuration is defined in YAML files.
 
-* steps should be able to use metal shaders or swift code depending on whether GPU or CPU should be used
-* frames are represented by Metal textures, as they will most commonly be used in GPU tasks
+## Implementation Architecture
+
+### Execution Backend
+
+Processing steps can execute on either the GPU or CPU, depending on the computational requirements and available hardware. Steps that benefit from parallel processing (such as image filtering operations) use Metal shaders for GPU acceleration, while operations that require sequential logic or are not well-suited for parallelization execute as Swift code on the CPU. The pipeline system abstracts this choice, allowing steps to declare their preferred execution backend while maintaining a consistent interface.
+
+### Data Representation
+
+Frames are represented as Metal textures (`MTLTexture`) to enable efficient GPU processing. This design choice reflects that most image processing operations in astrophotography pipelines are computationally intensive and benefit from GPU acceleration. Metal textures provide direct access to GPU memory and can be efficiently passed between processing steps without unnecessary CPU-GPU transfers.
+
+### Step Implementation
+
+Each Metal-based filter or processor is wrapped in a Swift class that interfaces with the pipeline system. These Swift wrappers handle parameter configuration, resource management, and coordinate the execution of the underlying Metal shaders. To promote code reuse and consistency, all Metal-based step wrappers inherit from a common base class that provides functionality for loading and managing one or more Metal shader functions. This base class handles the compilation of Metal shaders, creation of compute pipelines, and management of GPU resources.
+
+### Pipeline Composition
+
+A single processing step is itself a minimal pipeline, a pipeline with exactly one step. This design allows for uniform treatment of steps and pipelines throughout the system, enabling recursive composition where pipelines can contain other pipelines as steps. This hierarchical structure supports modular design and code reuse.
+
+### Data Identity and Provenance
+
+Each piece of processed data must maintain a unique identifier and track its processing history. The processing history can be represented explicitly or inferred through a system of linked identifiers. For example, a Gaussian-blurred frame receives a unique identifier, and a background estimation frame derived from that blurred frame maintains references to the identifiers of its input frames.
+
+Identifiers must be globally unique within the processing context. This ensures that a Gaussian-blurred version of one source frame has a different identifier than a Gaussian-blurred version of a different source frame, even if the same processing operation was applied. Additionally, each processed data object maintains a reference to the identifier of the step that produced it, creating a complete provenance chain from source data through all processing steps to the final output.
+
+## Data Structures and Metadata
+
+### Frame and Data Wrappers
+
+While Metal textures (`MTLTexture`) provide the low-level representation of image data for GPU processing, they must be wrapped in higher-level objects that carry metadata and provenance information. A `Frame` class serves this purpose, encapsulating the Metal texture along with associated metadata such as dimensions, pixel format, processing history, and provenance chain. These `Frame` objects are the primary data exchange mechanism between pipeline steps, ensuring that both the raw image data and its contextual information are preserved throughout processing.
+
+The `Frame` class maintains the complete provenance chain, tracking all processing steps that have been applied to the data. This includes references to source frames, intermediate processing steps, and the sequence of transformations that produced the current frame state. This metadata enables the system to understand the data's lineage and supports features such as incremental reprocessing and result validation.
+
+### Data Type Hierarchy
+
+To support different data types beyond frames (such as tables, matrices, or scalar values), the system employs a common base class from which specialized data types inherit. For example, a `Table` class would inherit from the same base class as `Frame`, sharing common functionality for metadata management, provenance tracking, and identifier assignment. This inheritance hierarchy ensures consistent behavior across all data types while allowing type-specific extensions. The base class defines the interface for data identity, provenance tracking, and metadata storage, while derived classes implement type-specific operations and representations.
+
+### Source Frame Metadata
+
+Source frames (frames loaded directly from FITS files or other input sources) carry additional metadata that describes their acquisition characteristics. This includes the frame type classification (bias, dark, flat, dark flat, or light frame), which determines how the frame is used in calibration workflows. Additionally, source frames record information about physical filters used during acquisition, such as color filters (R, G, B), narrowband filters (Hα, OIII, SII), or other optical filters. This metadata enables the pipeline system to automatically select appropriate calibration frames and apply correct processing workflows based on the frame characteristics.
+
+### Frame Collections
+
+Pipelines must support processing collections of frames as a single logical unit. For example, a stacking pipeline operates on a set of light frames of the same astronomical object, combining them to reduce noise and improve signal-to-noise ratio. The system provides a `FrameCollection` or similar structure that groups related frames together while maintaining individual frame metadata. These collections can be passed as inputs to pipeline steps that operate on multiple frames simultaneously, such as stacking, median combination, or statistical analysis operations. The collection structure preserves the relationship between frames (e.g., all frames of the same object, same filter, same exposure time) while allowing individual frame access when needed.
+
+### Incremental Reprocessing
+
+To support interactive parameter tuning and iterative refinement, the pipeline system must support incremental reprocessing. When a user modifies a parameter of a step after a pipeline execution, the system should be able to re-execute the pipeline starting from the modified step, rather than reprocessing from the beginning. This requires maintaining intermediate results and establishing clear dependencies between steps. When a step's parameters change, all downstream steps that depend on that step's output must be marked for reprocessing, while upstream steps can reuse their cached results. This incremental execution model significantly improves workflow efficiency, especially when fine-tuning parameters in a GUI application where users may experiment with different settings.
+
+## Execution Model
+
+### Progress Reporting
+
+Processing steps in a pipeline can vary significantly in execution time. Some operations, such as simple pixel-wise transformations or small kernel convolutions, complete almost instantaneously on modern GPUs. Other operations, such as large-scale background estimation, multi-frame stacking, or complex statistical computations, may require seconds or even minutes to complete.
+
+The pipeline system provides an optional progress reporting mechanism that steps can implement when their execution time warrants user feedback. Steps that complete quickly (typically under a few hundred milliseconds) are not required to implement progress reporting, as the overhead of progress updates would be unnecessary and potentially disruptive. Steps that take longer can optionally implement a progress callback interface, reporting completion percentage or current operation status at regular intervals.
+
+The progress reporting system uses a callback or delegate pattern, allowing GUI applications to update progress bars, status messages, or other user interface elements in real-time. The pipeline executor aggregates progress information from individual steps to provide overall pipeline progress, enabling users to estimate remaining processing time for long-running workflows.
+
+The pipeline executor calculates overall progress by weighting individual step progress according to the step's estimated or actual execution time relative to the total pipeline execution time. This aggregated progress provides users with a high-level view of pipeline completion, typically displayed as a percentage (0-100%) or as a fraction of completed steps. The executor also maintains information about which step is currently executing, allowing the GUI to display contextual status messages such as "Applying Gaussian blur (Step 2 of 5)" or "Computing background estimation (45% complete)". This overall progress information is essential for long-running pipelines where users need to understand both the current operation and the remaining work. 
+
+### Asynchronous Execution
+
+Pipeline execution must be non-blocking in GUI applications to maintain responsive user interfaces. The system uses Swift's `async/await` concurrency model to execute pipelines asynchronously, allowing the main thread to remain available for user interaction, UI updates, and event handling. This asynchronous execution model prevents the application from freezing during long-running processing operations.
+
+The pipeline executor exposes an async interface that can be awaited, enabling GUI applications to display progress, handle cancellation requests, and update the interface as steps complete. Error handling is integrated into the async model, allowing exceptions and processing errors to be properly propagated and handled by the calling code.
+
+In command-line interface (CLI) applications, synchronous execution may be preferred or even required, depending on the workflow. CLI tools often benefit from blocking execution that provides immediate feedback and simpler error handling. The pipeline system supports both execution modes: asynchronous execution for GUI applications and optional synchronous execution for CLI tools, allowing each application type to choose the appropriate model for its use case.
+
+### Logging and Error Handling
+
+The pipeline system implements an internal logging framework that captures events and messages at different severity levels throughout pipeline execution. This logging system records informational messages, warnings, and errors, each associated with the specific step that generated them. Log entries include contextual information such as step identifier, step name, timestamp, and detailed messages describing the event.
+
+Log levels typically include informational messages (for normal operation tracking), warnings (for non-fatal issues that may affect results), and errors (for problems that prevent step completion). The logging framework allows users to filter and view logs by level, step, or time range, providing comprehensive visibility into pipeline execution behavior. In GUI applications, logs can be displayed in a dedicated logging panel or console, allowing users to review the complete execution history after pipeline completion or during execution.
+
+Errors are handled separately from other log entries and require special attention. Non-fatal errors allow the pipeline to continue execution where possible, collecting all errors encountered during processing. These non-fatal errors are associated with the specific step that generated them, including the step identifier, step name, and contextual information about the failure. In GUI applications, these collected errors are presented in a dedicated error pane or panel, organized by step and severity level. The error presentation includes sufficient detail for users to understand what went wrong, which step failed, and potentially how to resolve the issue.
+
+Some errors are associated with specific frames within a collection rather than the entire step or pipeline. For example, during frame alignment in a stacking pipeline, a frame may fail to align because insufficient stars were detected for reliable registration. Similarly, a frame may be rejected due to insufficient quality caused by bad tracking during acquisition. These frame-level errors are associated with the specific frame identifier and stored as metadata on the frame object itself. Frames that have associated errors are marked as invalid or excluded, and are automatically disregarded in subsequent processing steps that operate on the collection. This allows the pipeline to continue processing the remaining valid frames in the collection, ensuring that a single problematic frame does not prevent the entire stack from being processed. The error information remains accessible for user review, allowing users to understand why specific frames were excluded and potentially take corrective action (such as adjusting detection parameters or manually excluding frames with known issues).
+
+However, some errors are classified as fatal errors that indicate conditions where pipeline execution cannot safely continue. Fatal errors include critical failures such as missing required input data, invalid pipeline configuration, resource exhaustion, or errors that would produce invalid or corrupted results if processing continued. When a fatal error occurs, the pipeline executor immediately stops execution, prevents subsequent steps from running, and presents the fatal error to the user with clear indication that execution was terminated. This approach ensures data integrity and prevents cascading failures while still allowing non-fatal errors to be collected and reviewed when execution can safely continue.
+
+### Intermediate Result Access
+
+During pipeline execution, intermediate results from completed steps should be accessible for inspection and visualization, particularly in GUI applications. This capability enables users to monitor the effects of each processing step in real-time, verify that operations are producing expected results, and identify issues early in the pipeline execution. The pipeline executor maintains references to all intermediate data objects (frames, tables, etc.) as they are produced, making them available through a query interface that allows the GUI to retrieve results by step identifier or data identifier.
+
+GUI applications can use this intermediate result access to display frames in image viewers, update preview panes, or populate result galleries as steps complete. This real-time feedback is especially valuable for iterative workflow development, where users need to understand how parameter changes affect intermediate processing stages. The intermediate results remain accessible until the pipeline execution completes or is cancelled, and may be retained in memory or cached to disk depending on system resources and configuration. This design supports both interactive exploration during pipeline development and result validation during production processing.
+
+### Pipeline Cancellation
+
+Users must always be able to cancel a running pipeline execution, particularly important for long-running operations or when users realize they need to adjust parameters. The pipeline executor provides a cancellation mechanism that can be triggered at any point during execution. When cancellation is requested, the executor stops processing at the next safe checkpoint (typically after the current step completes), cleans up resources, and returns control to the calling code. Cancelled pipelines leave the system in a consistent state, with intermediate results up to the cancellation point remaining available for inspection if desired. The cancellation mechanism is integrated with the async execution model, allowing GUI applications to provide responsive cancellation controls that immediately stop processing without blocking the user interface.
