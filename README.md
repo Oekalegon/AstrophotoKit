@@ -2,6 +2,10 @@
 
 A Swift package for astronomical image processing, including FITS file support and Metal shader integration.
 
+## Documentation
+
+Documentation can be found at: [AstrophotoKit Documentation](https://oekalegon.org/AstrophotoKit/)
+
 ## Features
 
 - **FITS File Support**: Fast FITS file reading/writing using CFITSIO (the official C library)
