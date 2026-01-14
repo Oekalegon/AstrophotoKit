@@ -1,0 +1,44 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:AstrophotoKit}",
+            "name": "Debug astrophotokit",
+            "target": "astrophotokit",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug astrophotokit"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:AstrophotoKit}",
+            "name": "Release astrophotokit",
+            "target": "astrophotokit",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release astrophotokit"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:AstrophotoKit}",
+            "name": "Debug astrophoto",
+            "target": "astrophoto",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug astrophoto"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:AstrophotoKit}",
+            "name": "Release astrophoto",
+            "target": "astrophoto",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release astrophoto"
+        }
+    ]
+}

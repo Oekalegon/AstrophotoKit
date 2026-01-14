@@ -21,6 +21,9 @@ extension Logger {
     
     /// Logger for UI-related operations
     public static let ui = Logger(subsystem: "com.astrophotokit", category: "astrophotokit-ui")
+    
+    /// Logger for CLI-related operations
+    public static let cli = Logger(subsystem: "com.astrophotokit", category: "astrophotokit-cli")
 }
 public struct AstrophotoKit {
     public init() {

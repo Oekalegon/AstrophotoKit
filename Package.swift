@@ -13,6 +13,9 @@ let package = Package(
         .library(
             name: "AstrophotoKit",
             targets: ["AstrophotoKit"]),
+        .executable(
+            name: "astrophoto",
+            targets: ["astrophoto"])
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
@@ -45,6 +48,10 @@ let package = Package(
             resources: [
                 .process("Shaders")  // Include Metal shader source files as resources
             ]),
+        // Command line executable target
+        .executableTarget(
+            name: "astrophoto",
+            dependencies: ["AstrophotoKit"]),
         .testTarget(
             name: "AstrophotoKitTests",
             dependencies: ["AstrophotoKit"],
