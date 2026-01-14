@@ -16,3 +16,4 @@ A Swift package for astronomical image processing, including FITS file support a
 ## Documentation
 
 Welcome to the AstrophotoKit documentation. More content coming soon!
+

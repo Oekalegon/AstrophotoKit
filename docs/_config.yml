@@ -28,15 +28,23 @@ github_username:  Oekalegon
 
 # Author settings (required by jekyll-klise theme)
 author:
-  name: Oekalegon
-  bio: Astrophotography enthusiast, AI developer
-  avatar: /assets/images/Oekalegon-square.png
+  name: AstrophotoKit
+  bio: A Swift package for astronomical image processing
+  avatar: /assets/images/astrophotokit.png
 
 # Build settings
 remote_theme: Oekalegon/jekyll-klise
 plugins:
   - jekyll-feed
   - jekyll-remote-theme
+
+# Collections
+collections:
+  posts:
+    output: true
+  articles:
+    output: true
+    permalink: /articles/:name/
 
 # Exclude from processing.
 # The following items will not be processed, by default.
