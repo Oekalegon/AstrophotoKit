@@ -161,6 +161,28 @@ public enum FITSDataType: Equatable {
         case .double: return .r32Float  // Convert double to float for Metal
         }
     }
+    
+    /// Creates a FITSDataType from a Metal pixel format.
+    /// 
+    /// Note: Some conversions are lossy. For example, both `.long` and `.longLong` 
+    /// map to `.r32Uint`, and both `.float` and `.double` map to `.r32Float`.
+    /// This method assumes the most common mapping (`.long` for `.r32Uint`, `.float` for `.r32Float`).
+    /// - Parameter pixelFormat: The Metal pixel format
+    /// - Returns: The corresponding FITSDataType, or `nil` if the format is not supported
+    static func from(metalPixelFormat pixelFormat: MTLPixelFormat) -> FITSDataType? {
+        switch pixelFormat {
+        case .r8Unorm, .r8Uint, .r8Sint:
+            return .byte
+        case .r16Unorm, .r16Uint, .r16Sint, .r16Float:
+            return .short
+        case .r32Uint, .r32Sint:
+            return .long
+        case .r32Float:
+            return .float
+        default:
+            return nil
+        }
+    }
 }
 
 /// FITS header value types

@@ -43,6 +43,35 @@ public struct Frame: ProcessData {
         return metadata(for: FrameMetadataKey.type) as? FrameType ?? .unknown
     }
 
+    /// The filter used for the frame.
+    /// 
+    /// For instance, a frame can be a red frame, a green frame, a blue frame, 
+    /// a narrowband frame.
+    public var filter: Filter {
+        return metadata(for: FrameMetadataKey.filter) as? Filter ?? .unknown
+    }
+
+    /// The color space of the frame, derived from the texture's pixel format.
+    /// 
+    /// If a texture is available, the color space is determined from its pixel format
+    /// (grayscale for single-channel formats, RGB for multi-channel formats).
+    /// If no texture is available or the format cannot be determined, falls back to metadata.
+    public var colorSpace: ColorSpace {
+        if let texture = texture,
+           let colorSpace = ColorSpace.from(metalPixelFormat: texture.pixelFormat) {
+            return colorSpace
+        }
+        return metadata(for: FrameMetadataKey.colorSpace) as? ColorSpace ?? .unknown
+    }
+
+    /// The data type of the frame, derived from the texture's pixel format.
+    public var dataType: FITSDataType? {
+        guard let texture = texture else {
+            return metadata(for: FrameMetadataKey.dataType) as? FITSDataType ?? nil
+        }
+        return FITSDataType.from(metalPixelFormat: texture.pixelFormat)
+    }
+
     /// Get the metadata for this frame.
     /// 
     /// The function checks if the key is a valid frame metadata key and returns `nil` if it is not.
@@ -66,7 +95,7 @@ public enum FrameMetadataKey: String, MetadataKey {
 
     /// The color space used for the frame.
     /// 
-    /// For instance, a frame can be in greyscale, RGB, or use a Bayer pattern.
+    /// For instance, a frame can be in greyscale or RGB.
     case colorSpace
 
     /// The data type used for the frame.
@@ -236,8 +265,8 @@ public enum ColorSpace: String, Metadata {
     /// A RGB color space.
     case RGB
 
-    /// A Bayer pattern color space.
-    case bayer
+    /// An unknown color space.
+    case unknown
 
     /// The key for this metadata value.
     /// Returns the ``FrameMetadataKey.colorSpace`` key.
@@ -248,5 +277,33 @@ public enum ColorSpace: String, Metadata {
     /// The identifier for the metadata key.
     public var id: String {
         return "\(String(describing: Self.self)).\(rawValue)"
+    }
+    
+    /// Creates a ColorSpace from a Metal pixel format.
+    /// 
+    /// Single-channel formats (e.g., `.r8Unorm`, `.r32Float`) indicate grayscale.
+    /// Multi-channel formats (e.g., `.rgba8Unorm`, `.rgba32Float`) indicate RGB.
+    /// - Parameter pixelFormat: The Metal pixel format
+    /// - Returns: The corresponding ColorSpace, or `nil` if the format is not supported
+    static func from(metalPixelFormat pixelFormat: MTLPixelFormat) -> ColorSpace? {
+        switch pixelFormat {
+        // Single-channel formats (grayscale)
+        case .r8Unorm, .r8Uint, .r8Sint,
+             .r16Unorm, .r16Uint, .r16Sint, .r16Float,
+             .r32Uint, .r32Sint, .r32Float:
+            return .greyscale
+            
+        // Multi-channel formats (RGB/RGBA)
+        case .rgba8Unorm, .rgba8Unorm_srgb, .rgba8Uint, .rgba8Sint,
+             .rgba16Unorm, .rgba16Uint, .rgba16Sint, .rgba16Float,
+             .rgba32Uint, .rgba32Sint, .rgba32Float,
+             .rgb9e5Float, .rgb10a2Unorm, .rgb10a2Uint,
+             .bgra8Unorm, .bgra8Unorm_srgb:
+            return .RGB
+            
+        // Unsupported formats
+        default:
+            return nil
+        }
     }
 } 
