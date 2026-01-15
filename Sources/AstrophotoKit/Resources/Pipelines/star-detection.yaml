@@ -2,25 +2,6 @@ id: star_detection
 name: Star Detection Pipeline
 description: Detects stars in astronomical images using Gaussian blur, background estimation, thresholding, erosion, dilation, connected components analysis, quads, and draws ellipses around detected stars
 
-requiredInputs:
-  - input_frame
-
-optionalInputs:
-  - blur_radius
-  - threshold_value
-  - erosion_kernel_size
-  - dilation_kernel_size
-  - max_stars
-  - min_distance_percent
-  - k_neighbors
-  - ellipse_color_r
-  - ellipse_color_g
-  - ellipse_color_b
-  - ellipse_width
-  - quad_color_r
-  - quad_color_g
-  - quad_color_b
-  - quad_width
 
 steps:
   - id: grayscale
@@ -41,7 +22,6 @@ steps:
         metadata:
           processing_stage: "color_conversion"
           image_type: "grayscale"
-    backend: gpu
 
   - id: blur
     type: gaussian_blur
@@ -57,7 +37,7 @@ steps:
     parameters:
       - name: radius
         from: blur_radius
-        default_value: "3.0"
+        default_value: 3.0
         description: Blur radius in pixels
     outputs:
       - name: blurred_frame
@@ -66,7 +46,6 @@ steps:
           processing_stage: "noise_reduction"
           quality_metric: "smoothed"
           image_type: "grayscale"
-    backend: gpu
 
   - id: background
     type: background_estimation
@@ -96,7 +75,6 @@ steps:
           processing_stage: "background_estimation"
           data_type: "scalar"
           unit: "ADU"
-    backend: gpu
 
   - id: threshold
     type: threshold
@@ -109,7 +87,7 @@ steps:
     parameters:
       - name: threshold_value
         from: threshold_value
-        default_value: "3.0"
+        default_value: 3.0
         description: Threshold value (sigma multiplier)
       - name: method
         default_value: "sigma"
@@ -120,7 +98,6 @@ steps:
         metadata:
           processing_stage: "thresholding"
           image_type: "binary"
-    backend: gpu
 
   - id: erosion
     type: erosion
@@ -133,7 +110,7 @@ steps:
     parameters:
       - name: kernel_size
         from: erosion_kernel_size
-        default_value: "3"
+        default_value: 3
         description: Erosion kernel size
     outputs:
       - name: eroded_frame
@@ -142,7 +119,6 @@ steps:
           processing_stage: "morphological_processing"
           operation: "erosion"
           image_type: "binary"
-    backend: gpu
 
   - id: dilation
     type: dilation
@@ -155,7 +131,7 @@ steps:
     parameters:
       - name: kernel_size
         from: dilation_kernel_size
-        default_value: "3"
+        default_value: 3
         description: Dilation kernel size
     outputs:
       - name: dilated_frame
@@ -164,7 +140,6 @@ steps:
           processing_stage: "morphological_processing"
           operation: "dilation"
           image_type: "binary"
-    backend: gpu
 
   - id: connected_components
     type: connected_components
@@ -189,7 +164,6 @@ steps:
           processing_stage: "star_detection"
           data_type: "scalar"
           unit: "count"
-    backend: cpu
 
   - id: quads
     type: quads
@@ -217,7 +191,6 @@ steps:
           data_type: "table"
           table_type: "quad_catalog"
           matching_algorithm: "k_nearest_neighbors"
-    backend: cpu
 
   - id: overlay
     type: star_detection_overlay
@@ -281,4 +254,3 @@ steps:
             - type: "quad"
               purpose: "matching_guide"
           preserve_source_metadata: true
-    backend: gpu

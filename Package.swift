@@ -47,13 +47,14 @@ let package = Package(
                 "Pipelines/_archive_v1"  // Exclude archived pipeline code from compilation to prevent naming conflicts
             ],
             resources: [
-                .process("Shaders")  // Include Metal shader source files as resources
+                .process("Shaders"),  // Include Metal shader source files as resources
+                .process("Resources")  // Include pipeline configuration files
             ]),
         .testTarget(
             name: "AstrophotoKitTests",
             dependencies: ["AstrophotoKit"],
             resources: [
                 .process("Resources")  // Include all FITS test files
-            ]),
+            ])
     ]
 )
