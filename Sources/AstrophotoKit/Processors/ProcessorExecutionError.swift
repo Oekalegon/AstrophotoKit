@@ -9,6 +9,16 @@ public enum ProcessorExecutionError: LocalizedError {
     case metalNotAvailable
     case couldNotCreateResource(String)
 
+    /// Whether this error is fatal and should stop the entire pipeline
+    public var isFatal: Bool {
+        switch self {
+        case .processorNotFound, .metalNotAvailable, .couldNotCreateResource:
+            return true
+        case .missingRequiredInput, .invalidInputType, .executionFailed:
+            return false
+        }
+    }
+
     public var errorDescription: String? {
         switch self {
         case .processorNotFound(let type):
@@ -26,4 +36,5 @@ public enum ProcessorExecutionError: LocalizedError {
         }
     }
 }
+
 

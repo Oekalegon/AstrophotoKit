@@ -1,5 +1,13 @@
 import Foundation
 
+/// How a collection input should be processed
+public enum CollectionProcessingMode: String, Codable {
+    /// Process all items in the collection together (e.g., stack all frames together)
+    case together
+    /// Process each item in the collection individually (e.g., process each frame separately)
+    case individually
+}
+
 /// Data input specification for a pipeline step
 /// Specifies which data (frame, table, etc. from a previous step or pipeline input) this step acts upon
 public struct DataInput: Codable {
@@ -18,16 +26,29 @@ public struct DataInput: Codable {
     /// Optional description
     public let description: String?
 
+    /// Indicates whether this input is a collection/set of items
+    /// If true, the input is expected to be an array/collection of items
+    public let isCollection: Bool?
+
+    /// How to process the collection (only relevant if isCollection is true)
+    /// - `together`: Process all items in the collection together (e.g., stack all frames)
+    /// - `individually`: Process each item individually, creating one step instance per item
+    public let collectionMode: CollectionProcessingMode?
+
     public init(
         name: String,
         from: String,
         metadataRestrictions: [String: MetadataRestriction]? = nil,
-        description: String? = nil
+        description: String? = nil,
+        isCollection: Bool? = nil,
+        collectionMode: CollectionProcessingMode? = nil
     ) {
         self.name = name
         self.from = from
         self.metadataRestrictions = metadataRestrictions
         self.description = description
+        self.isCollection = isCollection
+        self.collectionMode = collectionMode
     }
 
     enum CodingKeys: String, CodingKey {
@@ -35,5 +56,7 @@ public struct DataInput: Codable {
         case from
         case metadataRestrictions = "metadata_restrictions"
         case description
+        case isCollection = "is_collection"
+        case collectionMode = "collection_mode"
     }
 }
