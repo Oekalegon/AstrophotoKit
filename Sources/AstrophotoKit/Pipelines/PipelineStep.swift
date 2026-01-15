@@ -68,9 +68,9 @@ public struct PipelineStep: Codable {
         device: MTLDevice,
         commandQueue: MTLCommandQueue,
         registry: ProcessorRegistry = .shared
-    ) throws -> [String: Any] {
+    ) async throws -> [String: Any] {
         // Look up the processor
-        guard let processor = registry.get(type: type) else {
+        guard let processor = await registry.get(type: type) else {
             throw ProcessorExecutionError.processorNotFound(type)
         }
 

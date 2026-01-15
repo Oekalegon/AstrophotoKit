@@ -1,11 +1,13 @@
 import Foundation
 
 /// Registry for processors
-public class ProcessorRegistry {
+/// Implemented as an actor for thread-safe access in concurrent execution contexts
+public actor ProcessorRegistry {
     private var implementations: [String: Processor] = [:]
     public static let shared = ProcessorRegistry()
 
-    private init() {}
+    /// Create a new registry instance (useful for testing)
+    public init() {}
 
     /// Register a processor
     /// - Parameters:
@@ -21,5 +23,11 @@ public class ProcessorRegistry {
     public func get(type: String) -> Processor? {
         return implementations[type]
     }
+
+    /// Clear all registered processors (useful for testing)
+    public func clear() {
+        implementations.removeAll()
+    }
 }
+
 
