@@ -3,6 +3,7 @@ import Metal
 
 /// Protocol that processors must conform to
 public protocol Processor {
+    
     /// Execute this processor with the given inputs and parameters
     /// - Parameters:
     ///   - inputs: Dictionary of input name to data (type to be defined)

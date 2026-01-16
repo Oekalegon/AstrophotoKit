@@ -95,18 +95,87 @@ public struct Pipeline: Codable {
         commandQueue: MTLCommandQueue,
         registry: ProcessorRegistry = .shared
     ) async throws -> [String: Any] {
+
         // Track available data (pipeline inputs + step outputs)
         // Use actor for async-safe synchronization
+        let dataStack = DataStack()
+        let processStack = ProcessStack()
+        
+        let initialProcess = Process(
+            processorIdentifier: "initial"
+        )
+
+        await self.createInitialInputData(
+            from: inputs,
+            device: device,
+            initialProcess: initialProcess,
+            dataStack: dataStack,
+        )
+
+        // This represents the initial process
+        let initialProcess = Process(
+            processorIdentifier: "initial"
+        )
+        // Create the pipeline processes.
+        for step in steps {
+        }
+        return [:]
+    }
+
+    private func createInitialInputData(
+        from inputs: [String: Any],
+        device: MTLDevice,
+        initialProcess: Process,
+        dataStack: DataStack,
+    ) async {
+        // Create the initial input data for the pipeline.
+        for (key, value) in inputs {
+            let inputData = try self.createInputData(
+                from: value,
+                device: device,
+                outputProcess: .output(process: initialProcess.identifier, link: key),
+            )
+            await dataStack.add(data: inputData)
+        }
+    }
+
+    private func createInputData(
+        from input: Any,
+        device: MTLDevice,
+        outputProcess: ProcessDataLink,
+    ) throws -> ProcessData {
+        if let frame = input as? Frame {
+            return frame
+        } else if let frameSet = input as? FrameSet {
+            return frameSet
+        } else if let fitsImage = input as? FITSImage {
+            return try Frame(
+                fitsImage: fitsImage,
+                device: device,
+                outputProcess: outputProcess,
+                inputProcesses: []
+            )
+        } else {
+            fatalError("Unsupported input type: \(type(of: input))")
+        }
     }
 }
 
-internal actor OutputDataStack {
+internal actor DataStack {
+
     private var data: [ProcessData] = []
+
+    func add(data: ProcessData) {
+        self.data.append(data)
+    }
+
 }
     
-internal actor ProcessorStepStack {
-    private var processors: [ProcessorInstance] = []
+internal actor ProcessStack {
+    private var processes: [Process] = []
 
-
+    func add(process: Process) async {
+        self.processes.append(process)
+    }
 }
 

@@ -9,25 +9,57 @@ import Metal
 public struct Frame: ProcessData {
 
     /// The unique identifier for this frame.
-    public let identifier: String
+    public let identifier: UUID = UUID()
 
     /// The date and time this frame was instantiated.
-    public let instantiatedAt: Date?
+    public private(set) var instantiatedAt: Date?
 
     /// Whether this frame has been instantiated.
-    public let isInstantiated: Bool
+    public var isInstantiated: Bool { return instantiatedAt != nil }
 
     /// Whether this frame is a collection. This will always return `false` for frames.
     /// This represents individual frames.
     public var isCollection: Bool { return false }
 
-    /// The identifier of the process that produced this frame.
-    public let processIdentifier: String
+    /// The number of items in this collection.
+    /// This will always return `1` for frames.
+    public var collectionCount: Int { return 1 }
+
+    /// The input links for this frame.
+    /// 
+    /// The input links are the links (process parameters) to which this frame is connected.
+    /// They identify the process and the parameter name into which this data is fed.
+    public var inputLinks: [ProcessDataLink]
+
+    /// The output link for this frame.
+    /// 
+    /// The frame can be produced by only one process, so there is only one output link.
+    /// It is connected to the process that produces this frame with a name reference.
+    /// Named references are needed when a process produces multiple outputs and the 
+    /// output data needs to be referenced by name.
+    public var outputLink: ProcessDataLink?
+
+    /// The links for this frame.
+    /// 
+    /// The links are the links (process parameters) to which this frame is connected.
+    /// They identify the process and the parameter name into which this data is fed or taken from.
+    private var links: [ProcessDataLink] = []
 
     /// The Metal texture for this frame.
     /// 
     /// The texture is the raw image data for the frame.
-    public let texture: MTLTexture?
+    public var texture: MTLTexture? {
+        didSet {
+            // When the texture is set, and the data for the frame is available 
+            // the frame is instantiated. This happens when the process creating the frame
+            // has been completed and the frame data is available.
+            if texture != nil {
+                instantiatedAt = Date()
+            } else {
+                instantiatedAt = nil
+            }
+        }
+    }
 
     /// The metadata for this frame.
     /// 
@@ -70,6 +102,51 @@ public struct Frame: ProcessData {
             return metadata(for: FrameMetadataKey.dataType) as? FITSDataType ?? nil
         }
         return FITSDataType.from(metalPixelFormat: texture.pixelFormat)
+    }
+
+    /// Create a new frame.
+    /// 
+    /// The frame data is not necessarily instantiated during initialization, but
+    /// may be provided later. At that point the file will be instantiated.
+    /// 
+    /// A frame, or other piece of process data, is created when a pipeline is started
+    /// even if the image data is not yet available. For instance, in a stacking process,
+    /// the stacked output frame is created when the stacking process is started. The stacked
+    /// data is then not yet available, but will be made available when the stacking process
+    /// has been completed.
+    /// - Parameter type: The type of frame.
+    /// - Parameter filter: The filter used for the frame.
+    /// - Parameter colorSpace: The color space of the frame.
+    /// - Parameter dataType: The data type of the frame.
+    /// - Parameter texture: The Metal texture for the frame if available.
+    public init(
+        type: FrameType,
+        filter: Filter = .none,
+        colorSpace: ColorSpace,
+        dataType: FITSDataType,
+        texture: MTLTexture? = nil,
+        outputProcess: (id: UUID, name: String)?,
+        inputProcesses: [(id: UUID, name: String)]
+    ) {
+        self.instantiatedAt = texture != nil ? Date() : nil
+        self.texture = texture
+        var metadata = [FrameMetadataKey: Any]()
+        metadata[FrameMetadataKey.type] = type
+        metadata[FrameMetadataKey.filter] = filter
+        metadata[FrameMetadataKey.colorSpace] = colorSpace
+        metadata[FrameMetadataKey.dataType] = dataType
+        self.metadata = metadata
+        self.outputLink = outputProcess != nil ? .output(process: outputProcess!.id, link: outputProcess!.name) : nil
+        self.inputLinks = inputProcesses.map { .input(process: $0.id, link: $0.name) }
+    }
+
+    /// Instantiate this frame.
+    /// 
+    /// This method is used to instantiate the frame.
+    /// 
+    /// When the frame is instantiated, we assume that the frame data is available and ready to use.
+    public mutating func instantiate() {
+        self.instantiatedAt = Date()
     }
 
     /// Get the metadata for this frame.
@@ -185,6 +262,9 @@ public enum FrameType: String, Metadata {
 
     /// An unknown frame type.
     case unknown
+
+    /// Used for frame sets that contain multiple frame types.
+    case multiple
 
     /// The key for this metadata value.
     /// Returns the ``FrameMetadataKey.type`` key.
