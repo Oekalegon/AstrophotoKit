@@ -32,7 +32,20 @@ int fits_read_keyn_wrapper(fitsfile *fptr, int index, char *keyName, char *value
 }
 
 int fits_get_img_param_wrapper(fitsfile *fptr, int maxDimensions, int *bitpix, int *naxis, LONGLONG *naxes, int *status) {
-    return fits_get_img_param(fptr, maxDimensions, bitpix, naxis, naxes, status);
+    // Convert LONGLONG array to long array for fits_get_img_param
+    // fits_get_img_param expects long* but we receive LONGLONG* (64-bit) from Swift
+    long naxesLong[3] = {0, 0, 0};
+    
+    // Call fits_get_img_param with long array
+    int result = fits_get_img_param(fptr, maxDimensions, bitpix, naxis, naxesLong, status);
+    
+    // Copy results back to LONGLONG array for Swift
+    int dimsToCopy = (*naxis < 3) ? *naxis : 3;
+    for (int i = 0; i < dimsToCopy; i++) {
+        naxes[i] = (LONGLONG)naxesLong[i];
+    }
+    
+    return result;
 }
 
 int fits_read_img_wrapper(fitsfile *fptr, int dataType, int naxis, LONGLONG *firstPixel, LONGLONG *numElements, float *nullValue, float *array, int *anyNull, int *status) {

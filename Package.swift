@@ -6,7 +6,7 @@ import PackageDescription
 let package = Package(
     name: "AstrophotoKit",
     platforms: [
-        .macOS(.v14)
+        .macOS("26.0")  // macOS 26.0 and higher
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.

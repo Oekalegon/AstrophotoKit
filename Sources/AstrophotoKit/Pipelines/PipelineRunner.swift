@@ -189,8 +189,13 @@ public actor PipelineRunner {
                 fatalError("Output link must be an output case")
             }
         case .table:
-            Logger.pipeline.error("Table output data creation not yet implemented")
-            return nil
+            Logger.pipeline.debug("Creating table output data placeholder")
+            // Create a placeholder Table without DataFrame (not instantiated yet)
+            return Table(
+                dataFrame: nil, // Not instantiated yet
+                outputProcess: outputLink,
+                inputProcesses: []
+            )
         }
     }
 }

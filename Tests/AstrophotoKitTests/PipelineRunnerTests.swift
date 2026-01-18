@@ -74,7 +74,7 @@ func starDetectionPipelineCreatesCorrectStacks() async throws {
         }
     }
     
-    // The star-detection pipeline has 8 steps:
+    // The star-detection pipeline has 9 steps:
     // 1. grayscale
     // 2. blur
     // 3. background
@@ -82,8 +82,9 @@ func starDetectionPipelineCreatesCorrectStacks() async throws {
     // 5. erosion
     // 6. dilation
     // 7. connected_components
-    // 8. overlay
-    #expect(processes.count == 8)
+    // 8. quads
+    // 9. overlay
+    #expect(processes.count == 9)
     
     // Verify each process has the correct processor identifier
     let expectedTypes = [
@@ -94,6 +95,7 @@ func starDetectionPipelineCreatesCorrectStacks() async throws {
         "erosion",
         "dilation",
         "connected_components",
+        "quads",
         "star_detection_overlay"
     ]
     
@@ -104,7 +106,7 @@ func starDetectionPipelineCreatesCorrectStacks() async throws {
     
     // Verify all processes are in pending status initially
     let pendingProcesses = await runner.processStack.getPending()
-    #expect(pendingProcesses.count == 8)
+    #expect(pendingProcesses.count == 9)
     
     // Verify the data stack
     // We provided "input_frame" as input, so the data stack should contain at least one item
@@ -201,9 +203,9 @@ func starDetectionPipelineCreatesCorrectStacks() async throws {
         for outputLink in connectedComponentsProcess.outputData {
             if case .output(_, let name, let type, let stepLinkID) = outputLink {
                 if name == "pixel_coordinates" || name == "coordinate_count" {
-                    #expect(type == .table, "\(name) should be type 'table'")
+                    #expect(type == .table, "\(name) should be type 'table', but got '\(type)'")
                     let expectedStepLinkID = "connected_components.\(name)"
-                    #expect(stepLinkID == expectedStepLinkID, "\(name) stepLinkID should be '\(expectedStepLinkID)'")
+                    #expect(stepLinkID == expectedStepLinkID, "\(name) stepLinkID should be '\(expectedStepLinkID)', but got '\(stepLinkID)'")
                 }
             }
         }
