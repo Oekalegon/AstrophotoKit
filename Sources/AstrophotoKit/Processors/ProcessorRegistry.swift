@@ -53,6 +53,11 @@ public actor ProcessorRegistry {
         if implementations[dilation.id] == nil {
             register(dilation)
         }
+
+        let connectedComponents = ConnectedComponentsProcessor()
+        if implementations[connectedComponents.id] == nil {
+            register(connectedComponents)
+        }
         // Add more processors here as they are created
     }
 

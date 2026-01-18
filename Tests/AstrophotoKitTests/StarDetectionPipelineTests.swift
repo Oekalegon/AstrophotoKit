@@ -3,8 +3,8 @@ import Foundation
 import Metal
 @testable import AstrophotoKit
 
-@Test("Star detection pipeline runs first six steps (grayscale, blur, background, threshold, erosion, and dilation)")
-func testStarDetectionPipelineFirstSixSteps() async throws {
+@Test("Star detection pipeline runs first seven steps (grayscale, blur, background, threshold, erosion, dilation, and connected components)")
+func testStarDetectionPipelineFirstSevenSteps() async throws {
     // Get Metal device
     guard let device = MTLCreateSystemDefaultDevice() else {
         Issue.record("Metal device not available")
@@ -204,13 +204,42 @@ func testStarDetectionPipelineFirstSixSteps() async throws {
         print("✓ Dilated frame: \(dilatedFrame.texture!.width)x\(dilatedFrame.texture!.height)")
     }
 
-    // Check that grayscale, blur, background, threshold, erosion, and dilation processes exist
+    // Check for pixel_coordinates table output (from seventh step)
+    // Find data by stepLinkID: "connected_components.pixel_coordinates"
+    let pixelCoordinatesData = outputs.first { data in
+        if case .output(_, _, _, let stepLinkID) = data.outputLink {
+            return stepLinkID == "connected_components.pixel_coordinates"
+        }
+        return false
+    }
+    #expect(pixelCoordinatesData != nil, "Should have pixel_coordinates output")
+    if let pixelCoordinatesTable = pixelCoordinatesData as? Table {
+        #expect(pixelCoordinatesTable.isInstantiated, "Pixel coordinates table should be instantiated")
+        #expect(pixelCoordinatesTable.dataFrame != nil, "Pixel coordinates table should have DataFrame")
+        print("✓ Pixel coordinates table: \(pixelCoordinatesTable.rowCount) row(s), \(pixelCoordinatesTable.columnCount) column(s)")
+        if let df = pixelCoordinatesTable.dataFrame {
+            print("  Columns: \(pixelCoordinatesTable.columnNames.joined(separator: ", "))")
+            
+            // Print first 20 rows using DataFrame's description
+            // TabularData's DataFrame has a description property that formats the table nicely
+            let rowsToPrint = min(20, df.rows.count)
+            if rowsToPrint > 0 {
+                // Create a subset DataFrame with first N rows
+                let subsetDF = df[0..<rowsToPrint]
+                print("\n  First \(rowsToPrint) rows (sorted by area, descending):")
+                print(subsetDF.description)
+            }
+        }
+    }
+
+    // Check that grayscale, blur, background, threshold, erosion, dilation, and connected_components processes exist
     let grayscaleProcess = processes.first { $0.stepIdentifier == "grayscale" }
     let blurProcess = processes.first { $0.stepIdentifier == "blur" }
     let backgroundProcess = processes.first { $0.stepIdentifier == "background" }
     let thresholdProcess = processes.first { $0.stepIdentifier == "threshold" }
     let erosionProcess = processes.first { $0.stepIdentifier == "erosion" }
     let dilationProcess = processes.first { $0.stepIdentifier == "dilation" }
+    let connectedComponentsProcess = processes.first { $0.stepIdentifier == "connected_components" }
 
     #expect(grayscaleProcess != nil, "Should have grayscale process")
     #expect(blurProcess != nil, "Should have blur process")
@@ -218,6 +247,7 @@ func testStarDetectionPipelineFirstSixSteps() async throws {
     #expect(thresholdProcess != nil, "Should have threshold process")
     #expect(erosionProcess != nil, "Should have erosion process")
     #expect(dilationProcess != nil, "Should have dilation process")
+    #expect(connectedComponentsProcess != nil, "Should have connected_components process")
 
     // Print process durations
     print("\n=== Process Durations ===")
@@ -238,6 +268,9 @@ func testStarDetectionPipelineFirstSixSteps() async throws {
     }
     if let dilation = dilationProcess, let duration = dilation.duration {
         print("Dilation: \(String(format: "%.3f", duration))s")
+    }
+    if let connectedComponents = connectedComponentsProcess, let duration = connectedComponents.duration {
+        print("Connected Components: \(String(format: "%.3f", duration))s")
     }
 
     print("✓ Pipeline execution completed successfully")
