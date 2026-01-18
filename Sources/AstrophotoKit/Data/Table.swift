@@ -3,7 +3,7 @@ import Metal
 import TabularData
 
 /// A table is a piece of data that represents a table of data.
-public struct Table: ProcessData {
+public struct TableData: ProcessData {
 
     /// The unique identifier for this table.
     public let identifier: UUID = UUID()

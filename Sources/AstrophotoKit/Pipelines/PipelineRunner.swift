@@ -573,8 +573,8 @@ public actor PipelineRunner {
             }
         case .table:
             Logger.pipeline.debug("Creating table output data placeholder")
-            // Create a placeholder Table without DataFrame (not instantiated yet)
-            return Table(
+            // Create a placeholder TableData without DataFrame (not instantiated yet)
+            return TableData(
                 dataFrame: nil, // Not instantiated yet
                 outputProcess: outputLink,
                 inputProcesses: []

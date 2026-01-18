@@ -41,7 +41,7 @@ public struct StarDetectionOverlayProcessor: Processor {
         let (inputFrame, inputTexture) = try ProcessorHelpers.validateInputFrame(from: inputs)
 
         // Extract pixel_coordinates table
-        guard let pixelCoordinatesTable = inputs["pixel_coordinates"] as? Table,
+        guard let pixelCoordinatesTable = inputs["pixel_coordinates"] as? TableData,
               let pixelCoordinatesDF = pixelCoordinatesTable.dataFrame else {
             throw ProcessorExecutionError.missingRequiredInput("pixel_coordinates")
         }
@@ -51,7 +51,7 @@ public struct StarDetectionOverlayProcessor: Processor {
 
         // Extract quads (optional)
         var quads: [QuadLine] = []
-        if let quadsTable = inputs["quads"] as? Table,
+        if let quadsTable = inputs["quads"] as? TableData,
            let quadsDF = quadsTable.dataFrame {
             quads = try extractQuads(from: quadsDF)
         }

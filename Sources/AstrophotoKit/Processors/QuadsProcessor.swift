@@ -72,7 +72,7 @@ public struct QuadsProcessor: Processor {
         commandQueue: MTLCommandQueue
     ) throws {
         // Extract pixel_coordinates table
-        guard let pixelCoordinatesTable = inputs["pixel_coordinates"] as? Table,
+        guard let pixelCoordinatesTable = inputs["pixel_coordinates"] as? TableData,
               let dataFrame = pixelCoordinatesTable.dataFrame else {
             throw ProcessorExecutionError.missingRequiredInput("pixel_coordinates")
         }
@@ -104,7 +104,7 @@ public struct QuadsProcessor: Processor {
         )
 
         // Create output DataFrame
-        if var outputTable = outputs["quads"] as? Table {
+        if var outputTable = outputs["quads"] as? TableData {
             let quadDataFrame = createQuadDataFrame(quads: quads)
             outputTable.dataFrame = quadDataFrame
             outputs["quads"] = outputTable

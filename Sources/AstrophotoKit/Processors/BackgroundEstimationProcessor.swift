@@ -16,7 +16,7 @@ public struct BackgroundEstimationProcessor: Processor {
     ///   - outputs: Dictionary containing:
     ///     - "background_frame" -> ProcessData (Frame, to be instantiated)
     ///     - "background_subtracted_frame" -> ProcessData (Frame, to be instantiated)
-    ///     - "background_level" -> ProcessData (Table, to be instantiated)
+    ///     - "background_level" -> ProcessData (TableData, to be instantiated)
     ///   - parameters: Dictionary (empty for this processor)
     ///   - device: Metal device for GPU operations
     ///   - commandQueue: Metal command queue for GPU operations
@@ -373,7 +373,7 @@ public struct BackgroundEstimationProcessor: Processor {
         )
 
         // Create table with background level
-        if var backgroundLevelTable = outputs["background_level"] as? Table {
+        if var backgroundLevelTable = outputs["background_level"] as? TableData {
             var dataFrame = DataFrame()
             dataFrame.append(column: Column(name: "background_level", contents: [backgroundLevel]))
             backgroundLevelTable.dataFrame = dataFrame

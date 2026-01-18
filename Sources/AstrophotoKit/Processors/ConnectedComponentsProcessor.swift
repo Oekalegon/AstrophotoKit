@@ -32,7 +32,7 @@ public struct ConnectedComponentsProcessor: Processor {
     /// Execute the connected components processor
     /// - Parameters:
     ///   - inputs: Dictionary containing "input_frame" -> ProcessData (Frame)
-    ///   - outputs: Dictionary containing "pixel_coordinates" -> ProcessData (Table, to be instantiated)
+    ///   - outputs: Dictionary containing "pixel_coordinates" -> ProcessData (TableData, to be instantiated)
     ///   - parameters: Dictionary (empty for this processor)
     ///   - device: Metal device for GPU operations
     ///   - commandQueue: Metal command queue for GPU operations
@@ -62,7 +62,7 @@ public struct ConnectedComponentsProcessor: Processor {
 
         guard !allCoordinates.isEmpty else {
             // No pixels found, create empty table
-            if var outputTable = outputs["pixel_coordinates"] as? Table {
+            if var outputTable = outputs["pixel_coordinates"] as? TableData {
                 var dataFrame = DataFrame()
                 dataFrame.append(column: Column(name: "area", contents: [] as [Int]))
                 dataFrame.append(column: Column(name: "centroid_x", contents: [] as [Double]))
@@ -91,7 +91,7 @@ public struct ConnectedComponentsProcessor: Processor {
         // Sort by area (descending) so largest stars appear first
         let sortedProperties = componentProperties.sorted { $0.area > $1.area }
         
-        if var outputTable = outputs["pixel_coordinates"] as? Table {
+        if var outputTable = outputs["pixel_coordinates"] as? TableData {
             var dataFrame = DataFrame()
             // Add ID column (sequence number starting from 0)
             dataFrame.append(column: Column(name: "id", contents: Array(0..<sortedProperties.count)))
