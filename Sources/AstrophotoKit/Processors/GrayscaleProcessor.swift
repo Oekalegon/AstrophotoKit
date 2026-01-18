@@ -5,22 +5,25 @@ import os
 /// Processor for converting frames to grayscale
 public struct GrayscaleProcessor: Processor {
 
+    public var id: String { "grayscale" }
+
     public init() {}
 
     /// Execute the grayscale processor
     /// - Parameters:
-    ///   - inputs: Dictionary containing "input_frame" -> Frame
+    ///   - inputs: Dictionary containing "input_frame" -> ProcessData (Frame)
+    ///   - outputs: Dictionary containing "grayscale_frame" -> ProcessData (Frame, to be instantiated)
     ///   - parameters: Dictionary (empty for this processor)
     ///   - device: Metal device for GPU operations
     ///   - commandQueue: Metal command queue for GPU operations
-    /// - Returns: Dictionary containing "grayscale_frame" -> Frame
     /// - Throws: ProcessorExecutionError if execution fails
     public func execute(
-        inputs: [String: Any],
+        inputs: [String: ProcessData],
+        outputs: inout [String: ProcessData],
         parameters: [String: Parameter],
         device: MTLDevice,
         commandQueue: MTLCommandQueue
-    ) throws -> [String: Any] {
+    ) throws {
 
         // Get input frame
         guard let inputFrame = inputs["input_frame"] as? Frame else {
@@ -102,22 +105,19 @@ public struct GrayscaleProcessor: Processor {
             throw ProcessorExecutionError.executionFailed("GPU compute error: \(error.localizedDescription)")
         }
 
-        // Create output frame with the grayscale texture
-        // Update color space to grayscale
-        // Use input dataType or default to float if not available
-        let outputDataType = inputFrame.dataType ?? .float
-        let outputFrame = Frame(
-            type: inputFrame.type,
-            filter: inputFrame.filter,
-            colorSpace: .greyscale,  // Explicitly set to grayscale
-            dataType: outputDataType,
-            texture: outputTexture,
-            outputProcess: nil,  // Will be set by pipeline runner
-            inputProcesses: []
-        )
+        // Get output frame and instantiate it with the grayscale texture
+        guard var outputFrame = outputs["grayscale_frame"] as? Frame else {
+            throw ProcessorExecutionError.missingRequiredInput("grayscale_frame")
+        }
+
+        // Modify the existing frame instead of creating a new one (to preserve identifier)
+        // Update the texture - instantiatedAt will be set automatically when texture is set (via didSet)
+        // colorSpace is computed from texture format, so it will be set automatically
+        outputFrame.texture = outputTexture
+
+        // Update the outputs dictionary with the modified frame
+        outputs["grayscale_frame"] = outputFrame
 
         Logger.processor.debug("Grayscale conversion completed successfully")
-
-        return ["grayscale_frame": outputFrame]
     }
 }

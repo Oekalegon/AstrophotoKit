@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Registry for managing pipeline configurations
 /// Automatically discovers and loads all pipeline YAML files from the Resources/Pipelines directory
@@ -21,7 +22,7 @@ public class PipelineRegistry {
     /// Automatically discover and load all pipeline YAML files from Resources/Pipelines
     private func loadBuiltInPipelines() {
         guard let bundle = findPackageBundle() else {
-            print("Warning: Could not find package bundle to load built-in pipelines")
+            Logger.pipeline.warning("Could not find package bundle to load built-in pipelines")
             return
         }
 
@@ -55,7 +56,7 @@ public class PipelineRegistry {
                 let pipeline = try Pipeline.load(from: fileURL)
                 register(pipeline: pipeline)
             } catch {
-                print("Warning: Failed to load pipeline from \(fileURL.lastPathComponent): \(error.localizedDescription)")
+                Logger.pipeline.warning("Failed to load pipeline from \(fileURL.lastPathComponent): \(error.localizedDescription)")
             }
         }
     }

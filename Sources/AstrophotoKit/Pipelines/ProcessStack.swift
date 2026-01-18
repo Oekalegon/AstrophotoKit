@@ -131,12 +131,18 @@ public actor ProcessStack {
 
     /// Get all pending processes for which all input data is available (has been instantiated)
     /// - Parameter dataStack: The data stack to check for input data availability
+    /// - Parameter excludeProcesses: Optional set of process identifiers to exclude (already executed)
     /// - Returns: Array of pending processes that have all their input data instantiated
-    public func getReadyPending(dataStack: DataStack) async -> [Process] {
+    public func getReadyPending(dataStack: DataStack, excludeProcesses: Set<UUID> = []) async -> [Process] {
         let pending = getPending()
         var ready: [Process] = []
         
         for process in pending {
+            // Skip processes that have already been executed
+            if excludeProcesses.contains(process.identifier) {
+                continue
+            }
+
             // Check if all input data links have corresponding instantiated data
             var allInputsReady = true
             

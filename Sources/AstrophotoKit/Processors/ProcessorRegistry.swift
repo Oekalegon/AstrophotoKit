@@ -3,25 +3,61 @@ import Foundation
 /// Registry for processors
 /// Implemented as an actor for thread-safe access in concurrent execution contexts
 public actor ProcessorRegistry {
-    private var implementations: [String: Processor] = [:]
+    private var implementations: [String: any Processor] = [:]
+    private var isInitialized = false
     public static let shared = ProcessorRegistry()
 
     /// Create a new registry instance (useful for testing)
     public init() {}
 
-    /// Register a processor
+    /// Automatically register all built-in processors
+    /// This is called lazily when the registry is first accessed
+    private func initializeIfNeeded() {
+        guard !isInitialized else { return }
+        isInitialized = true
+
+        // Register all built-in processors
+        registerBuiltInProcessors()
+    }
+
+    /// Register all built-in processors
+    /// Only registers processors that haven't been manually registered yet
+    private func registerBuiltInProcessors() {
+        // Register built-in processors only if they're not already registered
+        let grayscale = GrayscaleProcessor()
+        if implementations[grayscale.id] == nil {
+            register(grayscale)
+        }
+
+        let gaussianBlur = GaussianBlurProcessor()
+        if implementations[gaussianBlur.id] == nil {
+            register(gaussianBlur)
+        }
+        // Add more processors here as they are created
+    }
+
+    /// Register a processor using its `id` property
+    /// The processor's `id` should match the `type` value in the pipeline step YAML
+    /// - Parameter processor: The processor implementation
+    public func register(_ processor: any Processor) {
+        implementations[processor.id] = processor
+    }
+
+    /// Register a processor with an explicit type identifier
     /// - Parameters:
     ///   - type: The step type identifier (e.g., "gaussian_blur")
     ///   - implementation: The processor implementation
-    public func register(type: String, implementation: Processor) {
+    public func register(type: String, implementation: any Processor) {
         implementations[type] = implementation
     }
 
     /// Get a processor by type
+    /// Automatically initializes the registry with built-in processors on first access
     /// - Parameter type: The step type identifier
     /// - Returns: The processor, or nil if not found
-    public func get(type: String) -> Processor? {
-        return implementations[type]
+    public func get(id: String) -> (any Processor)? {
+        initializeIfNeeded()
+        return implementations[id]
     }
 
     /// Clear all registered processors (useful for testing)
@@ -29,5 +65,3 @@ public actor ProcessorRegistry {
         implementations.removeAll()
     }
 }
-
-

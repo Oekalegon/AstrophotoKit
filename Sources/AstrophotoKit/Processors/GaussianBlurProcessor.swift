@@ -5,22 +5,25 @@ import os
 /// Processor for applying Gaussian blur to frames
 public struct GaussianBlurProcessor: Processor {
 
+    public var id: String { "gaussian_blur" }
+
     public init() {}
 
     /// Execute the Gaussian blur processor
     /// - Parameters:
-    ///   - inputs: Dictionary containing "input_frame" -> Frame
+    ///   - inputs: Dictionary containing "input_frame" -> ProcessData (Frame)
+    ///   - outputs: Dictionary containing "blurred_frame" -> ProcessData (Frame, to be instantiated)
     ///   - parameters: Dictionary containing "radius" -> Parameter (Double, default: 3.0)
     ///   - device: Metal device for GPU operations
     ///   - commandQueue: Metal command queue for GPU operations
-    /// - Returns: Dictionary containing "blurred_frame" -> Frame
     /// - Throws: ProcessorExecutionError if execution fails
     public func execute(
-        inputs: [String: Any],
+        inputs: [String: ProcessData],
+        outputs: inout [String: ProcessData],
         parameters: [String: Parameter],
         device: MTLDevice,
         commandQueue: MTLCommandQueue
-    ) throws -> [String: Any] {
+    ) throws {
 
         // Get input frame
         guard let inputFrame = inputs["input_frame"] as? Frame else {
@@ -157,21 +160,21 @@ public struct GaussianBlurProcessor: Processor {
             throw ProcessorExecutionError.executionFailed("GPU compute error: \(error.localizedDescription)")
         }
 
-        // Create output frame with the blurred texture
-        // Copy metadata from input frame but update processing stage
-        var outputFrame = Frame(
-            type: inputFrame.type,
-            filter: inputFrame.filter,
-            colorSpace: inputFrame.colorSpace,
-            dataType: inputFrame.dataType ?? .float,
-            texture: outputTexture,
-            outputProcess: nil,  // Will be set by pipeline runner
-            inputProcesses: []
-        )
+        // Get output frame and instantiate it with the blurred texture
+        guard var outputFrame = outputs["blurred_frame"] as? Frame else {
+            throw ProcessorExecutionError.missingRequiredInput("blurred_frame")
+        }
+
+        // Modify the existing frame instead of creating a new one (to preserve identifier)
+        // Update the texture - instantiatedAt will be set automatically when texture is set (via didSet)
+        outputFrame.texture = outputTexture
+        // Note: colorSpace and dataType are computed from texture format, so they will be set automatically
+
+        // Update the outputs dictionary with the modified frame
+        outputs["blurred_frame"] = outputFrame
 
         Logger.processor.debug("Gaussian blur completed successfully")
-
-        return ["blurred_frame": outputFrame]
     }
 }
+
 
