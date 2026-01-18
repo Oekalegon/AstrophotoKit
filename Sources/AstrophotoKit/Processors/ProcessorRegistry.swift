@@ -63,6 +63,11 @@ public actor ProcessorRegistry {
         if implementations[quads.id] == nil {
             register(quads)
         }
+
+        let starDetectionOverlay = StarDetectionOverlayProcessor()
+        if implementations[starDetectionOverlay.id] == nil {
+            register(starDetectionOverlay)
+        }
         // Add more processors here as they are created
     }
 

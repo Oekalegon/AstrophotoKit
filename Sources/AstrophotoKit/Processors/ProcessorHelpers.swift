@@ -113,6 +113,26 @@ public enum ProcessorHelpers {
         }
     }
 
+    /// Creates a Metal buffer from an array
+    /// - Parameters:
+    ///   - data: The array data to create buffer from
+    ///   - device: Metal device
+    /// - Returns: The created buffer
+    /// - Throws: ProcessorExecutionError if buffer cannot be created
+    public static func createBuffer<T>(
+        data: [T],
+        device: MTLDevice
+    ) throws -> MTLBuffer {
+        guard !data.isEmpty else {
+            throw ProcessorExecutionError.couldNotCreateResource("Cannot create buffer from empty array")
+        }
+        let length = data.count * MemoryLayout<T>.stride
+        guard let buffer = device.makeBuffer(bytes: data, length: length, options: []) else {
+            throw ProcessorExecutionError.couldNotCreateResource("Could not create buffer")
+        }
+        return buffer
+    }
+
     /// Creates a command buffer from a command queue
     /// - Parameter commandQueue: Metal command queue
     /// - Returns: The command buffer

@@ -3,8 +3,8 @@ import Foundation
 import Metal
 @testable import AstrophotoKit
 
-@Test("Star detection pipeline runs first eight steps (grayscale, blur, background, threshold, erosion, dilation, connected components, and quads)")
-func testStarDetectionPipelineFirstEightSteps() async throws {
+@Test("Star detection pipeline runs all steps including overlay")
+func testStarDetectionPipelineWithOverlay() async throws {
     // Get Metal device
     guard let device = MTLCreateSystemDefaultDevice() else {
         Issue.record("Metal device not available")
@@ -261,8 +261,24 @@ func testStarDetectionPipelineFirstEightSteps() async throws {
         }
     }
 
-    // Check that grayscale, blur, background, threshold, erosion, dilation,
-    // connected_components, and quads processes exist
+    // Check for annotated_frame output (from overlay step)
+    // Find data by stepLinkID: "overlay.annotated_frame"
+    let annotatedData = outputs.first { data in
+        if case .output(_, _, _, let stepLinkID) = data.outputLink {
+            return stepLinkID == "overlay.annotated_frame"
+        }
+        return false
+    }
+    #expect(annotatedData != nil, "Should have annotated_frame output")
+    var annotatedFrame: Frame?
+    if let frame = annotatedData as? Frame {
+        #expect(frame.texture != nil, "Annotated frame should be instantiated")
+        #expect(frame.isInstantiated, "Annotated frame should be instantiated")
+        annotatedFrame = frame
+        print("✓ Annotated frame: \(frame.texture!.width)x\(frame.texture!.height)")
+    }
+
+    // Check that all processes exist and have completed
     let grayscaleProcess = processes.first { $0.stepIdentifier == "grayscale" }
     let blurProcess = processes.first { $0.stepIdentifier == "blur" }
     let backgroundProcess = processes.first { $0.stepIdentifier == "background" }
@@ -271,6 +287,7 @@ func testStarDetectionPipelineFirstEightSteps() async throws {
     let dilationProcess = processes.first { $0.stepIdentifier == "dilation" }
     let connectedComponentsProcess = processes.first { $0.stepIdentifier == "connected_components" }
     let quadsProcess = processes.first { $0.stepIdentifier == "quads" }
+    let overlayProcess = processes.first { $0.stepIdentifier == "overlay" }
 
     #expect(grayscaleProcess != nil, "Should have grayscale process")
     #expect(blurProcess != nil, "Should have blur process")
@@ -280,6 +297,23 @@ func testStarDetectionPipelineFirstEightSteps() async throws {
     #expect(dilationProcess != nil, "Should have dilation process")
     #expect(connectedComponentsProcess != nil, "Should have connected_components process")
     #expect(quadsProcess != nil, "Should have quads process")
+    #expect(overlayProcess != nil, "Should have overlay process")
+
+    // Verify all processes have completed
+    let allProcesses = [grayscaleProcess, blurProcess, backgroundProcess, thresholdProcess,
+                        erosionProcess, dilationProcess, connectedComponentsProcess,
+                        quadsProcess, overlayProcess].compactMap { $0 }
+    #expect(allProcesses.count == 9, "Should have 9 processes")
+
+    for process in allProcesses {
+        let isCompleted = process.statusHistory.contains { status in
+            if case .completed = status {
+                return true
+            }
+            return false
+        }
+        #expect(isCompleted, "Process \(process.stepIdentifier) should be completed")
+    }
 
     // Print process durations
     print("\n=== Process Durations ===")
@@ -306,6 +340,30 @@ func testStarDetectionPipelineFirstEightSteps() async throws {
     }
     if let quads = quadsProcess, let duration = quads.duration {
         print("Quads: \(String(format: "%.3f", duration))s")
+    }
+    if let overlay = overlayProcess, let duration = overlay.duration {
+        print("Overlay: \(String(format: "%.3f", duration))s")
+    }
+
+    // Save annotated frame to JPEG in temp folder
+    if let frame = annotatedFrame, let texture = frame.texture {
+        let tempDir = FileManager.default.temporaryDirectory
+        let timestamp = Int(Date().timeIntervalSince1970)
+        let outputURL = tempDir.appendingPathComponent("star_detection_overlay_\(timestamp).jpg")
+
+        do {
+            try TextureToJPEG.save(
+                texture: texture,
+                to: outputURL,
+                device: device,
+                commandQueue: commandQueue,
+                quality: 0.9
+            )
+            print("\n✓ Saved annotated frame to: \(outputURL.path)")
+            #expect(FileManager.default.fileExists(atPath: outputURL.path), "JPEG file should exist")
+        } catch {
+            Issue.record("Failed to save JPEG: \(error.localizedDescription)")
+        }
     }
 
     print("✓ Pipeline execution completed successfully")

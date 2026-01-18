@@ -4,26 +4,26 @@ description: Detects stars in astronomical images using Gaussian blur, backgroun
 
 
 steps:
-  - id: grayscale
-    type: grayscale
-    name: Grayscale
-    description: Converts the input frame to grayscale (if it is not already)
-    dataInputs:
-      - name: input_frame
-        type: frame
-        from: input_frame
-        metadata_restrictions:
-          frame_type:
-            - light
-        description: The input frame to convert to grayscale
-    parameters: []
-    outputs:
-      - name: grayscale_frame
-        type: frame
-        description: Grayscale version of the input frame
-        metadata:
-          processing_stage: "color_conversion"
-          image_type: "grayscale"
+  # - id: grayscale
+  #   type: grayscale
+  #   name: Grayscale
+  #   description: Converts the input frame to grayscale (if it is not already)
+  #   dataInputs:
+  #     - name: input_frame
+  #       type: frame
+  #       from: input_frame
+  #       metadata_restrictions:
+  #         frame_type:
+  #           - light
+  #       description: The input frame to convert to grayscale
+  #   parameters: []
+  #   outputs:
+  #     - name: grayscale_frame
+  #       type: frame
+  #       description: Grayscale version of the input frame
+  #       metadata:
+  #         processing_stage: "color_conversion"
+  #         image_type: "grayscale"
 
   - id: blur
     type: gaussian_blur
@@ -32,7 +32,7 @@ steps:
     dataInputs:
       - name: input_frame
         type: frame
-        from: grayscale.grayscale_frame
+        from: input_frame
         metadata_restrictions:
           frame_type:
             - light
@@ -233,13 +233,19 @@ steps:
             min: 60.0
             max: 600.0
         description: The original input frame to annotate (light frame with specific filter and exposure time range)
-    parameters:
       - name: pixel_coordinates
+        type: table
         from: connected_components.pixel_coordinates
         description: Pixel coordinates of detected stars
       - name: quads
+        type: table
         from: quads.quads
         description: Quad groupings
+    parameters:
+      - name: draw_ellipses
+        from: draw_ellipses
+        default_value: 1
+        description: Whether to draw ellipses around detected stars (1 = true, 0 = false)
       - name: ellipse_color_r
         from: ellipse_color_r
         description: Ellipse color red component
@@ -252,6 +258,10 @@ steps:
       - name: ellipse_width
         from: ellipse_width
         description: Ellipse line width
+      - name: draw_quads
+        from: draw_quads
+        default_value: 1
+        description: Whether to draw quads for pattern matching (1 = true, 0 = false)
       - name: quad_color_r
         from: quad_color_r
         description: Quad color red component

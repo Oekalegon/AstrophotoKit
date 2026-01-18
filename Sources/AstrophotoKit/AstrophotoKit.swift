@@ -70,7 +70,8 @@ public struct AstrophotoKit {
             "ThresholdShader",
             "ErosionShader",
             "DilationShader",
-            "ConnectedComponentsShader"
+            "ConnectedComponentsShader",
+            "StarDetectionOverlayShader"
         ]
         if let shaderSource = loadShaderSource(requiredShaders: essentialShaders) {
             Logger.swiftfitsio.debug("Attempting to compile Metal library from source...")
