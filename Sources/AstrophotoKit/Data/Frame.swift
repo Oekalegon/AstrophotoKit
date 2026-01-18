@@ -119,14 +119,16 @@ public struct Frame: ProcessData {
     /// - Parameter colorSpace: The color space of the frame.
     /// - Parameter dataType: The data type of the frame.
     /// - Parameter texture: The Metal texture for the frame if available.
+    /// - Parameter outputProcess: The output link for this frame (the process that produces it).
+    /// - Parameter inputProcesses: The input links for this frame (the processes that consume it).
     public init(
         type: FrameType,
         filter: Filter = .none,
         colorSpace: ColorSpace,
         dataType: FITSDataType,
         texture: MTLTexture? = nil,
-        outputProcess: (id: UUID, name: String)?,
-        inputProcesses: [(id: UUID, name: String)]
+        outputProcess: ProcessDataLink? = nil,
+        inputProcesses: [ProcessDataLink] = []
     ) {
         self.instantiatedAt = texture != nil ? Date() : nil
         self.texture = texture
@@ -136,8 +138,8 @@ public struct Frame: ProcessData {
         metadata[FrameMetadataKey.colorSpace] = colorSpace
         metadata[FrameMetadataKey.dataType] = dataType
         self.metadata = metadata
-        self.outputLink = outputProcess != nil ? .output(process: outputProcess!.id, link: outputProcess!.name) : nil
-        self.inputLinks = inputProcesses.map { .input(process: $0.id, link: $0.name) }
+        self.outputLink = outputProcess
+        self.inputLinks = inputProcesses
     }
 
     /// Instantiate this frame.
@@ -147,6 +149,31 @@ public struct Frame: ProcessData {
     /// When the frame is instantiated, we assume that the frame data is available and ready to use.
     public mutating func instantiate() {
         self.instantiatedAt = Date()
+    }
+
+    /// Add an input link to this frame.
+    /// - Parameters:
+    ///   - process: The UUID of the process
+    ///   - link: The link name (parameter name)
+    ///   - type: The type of data
+    ///   - collectionMode: How to process collections
+    ///   - stepLinkID: The step link ID from the YAML `from` field (e.g., "grayscale.grayscale_frame")
+    public mutating func addInputLink(
+        process: UUID,
+        link: String,
+        collectionMode: CollectionMode,
+    ) {
+        guard let outputLink = outputLink else {
+            fatalError("Output link is not set for frame")
+        }
+        // Extract stepLinkID from the output link
+        let stepLinkID: String
+        if case .output(_, _, _, let linkStepLinkID) = outputLink {
+            stepLinkID = linkStepLinkID
+        } else {
+            fatalError("Output link must be an output case")
+        }
+        self.inputLinks.append(.input(process: process, link: link, type: .frame, collectionMode: collectionMode, stepLinkID: stepLinkID))
     }
 
     /// Get the metadata for this frame.

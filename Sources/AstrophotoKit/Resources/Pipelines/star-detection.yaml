@@ -10,6 +10,7 @@ steps:
     description: Converts the input frame to grayscale (if it is not already)
     dataInputs:
       - name: input_frame
+        type: frame
         from: input_frame
         metadata_restrictions:
           frame_type:
@@ -18,6 +19,7 @@ steps:
     parameters: []
     outputs:
       - name: grayscale_frame
+        type: frame
         description: Grayscale version of the input frame
         metadata:
           processing_stage: "color_conversion"
@@ -29,6 +31,7 @@ steps:
     description: Applies Gaussian blur to reduce noise and smooth the image
     dataInputs:
       - name: input_frame
+        type: frame
         from: grayscale.grayscale_frame
         metadata_restrictions:
           frame_type:
@@ -41,6 +44,7 @@ steps:
         description: Blur radius in pixels
     outputs:
       - name: blurred_frame
+        type: frame
         description: Gaussian-blurred version of the input frame
         metadata:
           processing_stage: "noise_reduction"
@@ -53,23 +57,27 @@ steps:
     description: Estimates and subtracts the background from the image
     dataInputs:
       - name: input_frame
+        type: frame
         from: blur.blurred_frame
         description: The blurred frame to estimate background from
     parameters: []
     outputs:
       - name: background_frame
+        type: frame
         description: Estimated background frame
         metadata:
           processing_stage: "background_estimation"
           data_type: "background_model"
           image_type: "grayscale"
       - name: background_subtracted_frame
+        type: frame
         description: Frame with background subtracted
         metadata:
           processing_stage: "background_subtraction"
           quality_metric: "background_removed"
           image_type: "grayscale"
       - name: background_level
+        type: table
         description: Background level scalar value
         metadata:
           processing_stage: "background_estimation"
@@ -82,6 +90,7 @@ steps:
     description: Creates a binary mask of potential stars
     dataInputs:
       - name: input_frame
+        type: frame
         from: background.background_subtracted_frame
         description: The background-subtracted frame to threshold
     parameters:
@@ -94,6 +103,7 @@ steps:
         description: Threshold method
     outputs:
       - name: thresholded_frame
+        type: frame
         description: Binary mask of potential stars
         metadata:
           processing_stage: "thresholding"
@@ -105,6 +115,7 @@ steps:
     description: Applies binary erosion to remove noise
     dataInputs:
       - name: input_frame
+        type: frame
         from: threshold.thresholded_frame
         description: The thresholded frame to erode
     parameters:
@@ -114,6 +125,7 @@ steps:
         description: Erosion kernel size
     outputs:
       - name: eroded_frame
+        type: frame
         description: Eroded binary mask
         metadata:
           processing_stage: "morphological_processing"
@@ -126,6 +138,7 @@ steps:
     description: Applies binary dilation to restore star shapes
     dataInputs:
       - name: input_frame
+        type: frame
         from: erosion.eroded_frame
         description: The eroded frame to dilate
     parameters:
@@ -135,6 +148,7 @@ steps:
         description: Dilation kernel size
     outputs:
       - name: dilated_frame
+        type: frame
         description: Dilated binary mask
         metadata:
           processing_stage: "morphological_processing"
@@ -147,11 +161,13 @@ steps:
     description: Identifies connected components (stars)
     dataInputs:
       - name: input_frame
+        type: frame
         from: dilation.dilated_frame
         description: The dilated frame to analyze
     parameters: []
     outputs:
       - name: pixel_coordinates
+        type: table
         description: Pixel coordinates of detected stars
         metadata:
           processing_stage: "star_detection"
@@ -159,6 +175,7 @@ steps:
           table_type: "star_catalog"
           catalog_format: "pixel_coordinates"
       - name: coordinate_count
+        type: table
         description: Number of detected stars
         metadata:
           processing_stage: "star_detection"
@@ -185,6 +202,7 @@ steps:
         description: Number of neighbors for quad formation
     outputs:
       - name: quads
+        type: table
         description: Quad groupings of stars for matching
         metadata:
           processing_stage: "quad_formation"
@@ -198,6 +216,7 @@ steps:
     description: Draws ellipses and quads around detected stars
     dataInputs:
       - name: input_frame
+        type: frame
         from: input_frame
         metadata_restrictions:
           frame_type:
@@ -244,6 +263,7 @@ steps:
         description: Quad line width
     outputs:
       - name: annotated_frame
+        type: frame
         description: Original frame annotated with detected stars and quads
         metadata:
           processing_stage: "visualization"

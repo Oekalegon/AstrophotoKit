@@ -299,6 +299,7 @@ func loadPipelineFromString() throws {
         parameters: []
         outputs:
           - name: output1
+            type: frame
             description: Test output
     """
     

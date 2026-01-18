@@ -10,12 +10,14 @@ extension Frame {
     /// - Parameters:
     ///   - fitsImage: The FITS image to create the frame from
     ///   - device: The Metal device to use for creating the texture
-    ///   - processIdentifier: The identifier of the process that produced this frame
+    ///   - outputProcess: The output link for this frame (the process that produces it)
+    ///   - inputProcesses: The input links for this frame (the processes that consume it)
     /// - Throws: An error if the texture cannot be created
     public init(
-        fitsImage: FITSImage, device: MTLDevice,
-        outputProcess: (id: UUID, name: String)?,
-        inputProcesses: [(id: UUID, name: String)]
+        fitsImage: FITSImage,
+        device: MTLDevice,
+        outputProcess: ProcessDataLink? = nil,
+        inputProcesses: [ProcessDataLink] = []
     ) throws {
         // Create the texture from the FITS image using the appropriate pixel format
         let texture = try fitsImage.createMetalTexture(device: device, pixelFormat: fitsImage.dataType.metalPixelFormat)

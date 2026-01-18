@@ -6,6 +6,10 @@ public struct Process {
     /// The unique identifier for this process.
     public let identifier: UUID = UUID()
 
+    /// The identifier of the step from the YAML configuration.
+    /// This matches the `id` field in the pipeline step definition.
+    public let stepIdentifier: String
+
     /// The identifier of the processor that produced this process.
     public let processorIdentifier: String
 
@@ -65,24 +69,70 @@ public struct Process {
     }
 
     public init(
+        stepIdentifier: String,
         processorIdentifier: String,
-        inputData: [String] = [],
+        inputData: [(String, DataType, CollectionMode, String)] = [], // (name, type, collectionMode, stepLinkID)
         parameters: [String: Parameter] = [:],
-        outputData: [String] = [],
+        outputData: [(String, DataType)] = [], // (name, type) - stepLinkID will be constructed as stepIdentifier.name
     ) {
+        self.stepIdentifier = stepIdentifier
         self.processorIdentifier = processorIdentifier
-        self.inputData = inputData.map { .input(process: self.identifier, link: $0) }
+        let processId = self.identifier
+        self.inputData = inputData.map { .input(process: processId, link: $0.0, type: $0.1, collectionMode: $0.2, stepLinkID: $0.3) }
         self.parameters = parameters
-        self.outputData = outputData.map { .output(process: self.identifier, link: $0) }
+        self.outputData = outputData.map { 
+            let stepLinkID = "\(stepIdentifier).\($0.0)"
+            return .output(process: processId, link: $0.0, type: $0.1, stepLinkID: stepLinkID)
+        }
+        self.statusHistory.append(.pending(date: Date()))
+    }
+
+    /// Create a Process from a PipelineStep.
+    ///
+    /// This initializer creates a Process instance from a PipelineStep configuration.
+    /// The process will be initialized with pending status and will have input/output
+    /// data names extracted from the step configuration.
+    /// - Parameter step: The pipeline step to create the process from
+    public init(step: PipelineStep) {
+        self.stepIdentifier = step.id
+        self.processorIdentifier = step.type
+        let processId = self.identifier
+        // Extract input data names from the step's data inputs and create ProcessDataLinks
+        self.inputData = step.dataInputs.map { dataInput in
+            let collectionMode = dataInput.collectionMode ?? .individually
+            // stepLinkID comes from the `from` field in the YAML
+            // If `from` doesn't contain a dot, it's a pipeline input, so convert to "initial.input_name"
+            let stepLinkID: String
+            if dataInput.from.contains(".") {
+                // It's a step output reference (e.g., "grayscale.grayscale_frame")
+                stepLinkID = dataInput.from
+            } else {
+                // It's a pipeline input reference (e.g., "input_frame" -> "initial.input_frame")
+                stepLinkID = "initial.\(dataInput.from)"
+            }
+            return .input(process: processId, link: dataInput.name, type: dataInput.type, collectionMode: collectionMode, stepLinkID: stepLinkID)
+        }
+        // Parameters are left empty as they need to be resolved from pipeline parameters
+        // ParameterSpec values need to be resolved to actual Parameter values during execution
+        self.parameters = [:] // TODO: Resolve parameters from step parameters
+        // Extract output data names from the step's outputs and create ProcessDataLinks
+        self.outputData = step.outputs.map { output in
+            // stepLinkID is stepIdentifier.outputName (e.g., "grayscale.grayscale_frame")
+            let stepLinkID = "\(step.id).\(output.name)"
+            return .output(process: processId, link: output.name, type: output.type, stepLinkID: stepLinkID)
+        }
         self.statusHistory.append(.pending(date: Date()))
     }
 
     /// Add an output data name to this process.
     /// 
     /// The output data name is the name of the data that this process produces.
-    /// - Parameter name: The name of the output data.
-    public mutating func addOutputData(name: String) {
-        self.outputData.append(.output(process: self.identifier, link: name))
+    /// - Parameters:
+    ///   - name: The name of the output data.
+    ///   - type: The type of the output data.
+    public mutating func addOutputData(name: String, type: DataType) {
+        let stepLinkID = "\(self.stepIdentifier).\(name)"
+        self.outputData.append(.output(process: self.identifier, link: name, type: type, stepLinkID: stepLinkID))
     }
 }
 

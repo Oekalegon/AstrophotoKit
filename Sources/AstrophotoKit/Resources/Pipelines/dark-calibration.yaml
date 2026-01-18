@@ -13,6 +13,7 @@ steps:
     description: Stacks multiple bias frames into a master bias frame using median or mean stacking
     dataInputs:
       - name: input_frames
+        type: frameSet
         from: bias_frames
         is_collection: true
         collection_mode: together
@@ -31,6 +32,7 @@ steps:
         description: Sigma rejection threshold for sigma_clip method
     outputs:
       - name: master_bias
+        type: frame
         description: Master bias frame created by stacking input bias frames
         metadata:
           processing_stage: "calibration"
@@ -46,6 +48,7 @@ steps:
     description: Subtracts the master bias from each dark frame to remove bias signal
     dataInputs:
       - name: input_frame
+        type: frameSet
         from: dark_frames
         is_collection: true
         collection_mode: individually
@@ -54,6 +57,7 @@ steps:
             - dark
         description: Individual dark frame to calibrate (each frame processed separately)
       - name: subtract_frame
+        type: frame
         from: stack_bias.master_bias
         metadata_restrictions:
           frame_type:
@@ -66,6 +70,7 @@ steps:
         description: Whether to preserve negative values after subtraction
     outputs:
       - name: calibrated_dark
+        type: frame
         description: Dark frame with bias signal removed
         metadata:
           processing_stage: "calibration"
@@ -81,6 +86,7 @@ steps:
     description: Stacks the bias-corrected dark frames into a master dark frame
     dataInputs:
       - name: input_frames
+        type: frameSet
         from: subtract_bias_from_dark.calibrated_dark
         is_collection: true
         collection_mode: together
@@ -99,6 +105,7 @@ steps:
         description: Sigma rejection threshold for sigma_clip method
     outputs:
       - name: master_dark
+        type: frame
         description: Master dark frame created by stacking calibrated dark frames
         metadata:
           processing_stage: "calibration"

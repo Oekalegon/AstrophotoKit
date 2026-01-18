@@ -63,17 +63,20 @@ public struct FrameSet: ProcessData {
     }
 
     /// Create a new frame set.
-    /// - Parameter frames: The frames in this frame set.
+    /// - Parameters:
+    ///   - frames: The frames in this frame set.
+    ///   - outputProcess: The output process information (id, name, stepLinkID)
+    ///   - inputProcesses: The input processes information (id, name, stepLinkID)
     public init(
         frames: [Frame], 
-        outputProcess: (id: UUID, name: String)?,
-        inputProcesses: [(id: UUID, name: String)]
+        outputProcess: (id: UUID, name: String, stepLinkID: String)?,
+        inputProcesses: [(id: UUID, name: String, stepLinkID: String)]
     ) {
         self.frames = frames
         var metadata = [FrameMetadataKey: Any]()
         metadata[FrameMetadataKey.type] = FrameSet.determineFrameType(frames: frames)
-        self.outputLink = outputProcess != nil ? .output(process: outputProcess!.id, link: outputProcess!.name) : nil
-        self.inputLinks = inputProcesses.map { .input(process: $0.id, link: $0.name) }
+        self.outputLink = outputProcess != nil ? .output(process: outputProcess!.id, link: outputProcess!.name, type: .frameSet, stepLinkID: outputProcess!.stepLinkID) : nil
+        self.inputLinks = inputProcesses.map { .input(process: $0.id, link: $0.name, type: .frameSet, collectionMode: .individually, stepLinkID: $0.stepLinkID) }
         self.metadata = metadata
     }
 
@@ -95,6 +98,31 @@ public struct FrameSet: ProcessData {
         return type
     }
 
+
+    /// Add an input link to this frame set.
+    /// 
+    /// The stepLinkID will be extracted from the outputLink if available.
+    /// - Parameters:
+    ///   - process: The UUID of the process
+    ///   - link: The link name (parameter name)
+    ///   - collectionMode: How to process collections
+    public mutating func addInputLink(
+        process: UUID,
+        link: String,
+        collectionMode: CollectionMode
+    ) {
+        guard let outputLink = outputLink else {
+            fatalError("Output link is not set for frame set")
+        }
+        // Extract stepLinkID from the output link
+        let stepLinkID: String
+        if case .output(_, _, _, let linkStepLinkID) = outputLink {
+            stepLinkID = linkStepLinkID
+        } else {
+            fatalError("Output link must be an output case")
+        }
+        self.inputLinks.append(.input(process: process, link: link, type: .frameSet, collectionMode: collectionMode, stepLinkID: stepLinkID))
+    }
 
     /// Get the metadata for this frame set.
     /// 

@@ -1,11 +1,13 @@
 import Foundation
 
-
 /// Output specification for a pipeline step
 /// Defines an output that a step produces, including metadata
 public struct DataOutput: Codable {
     /// The output name
     public let name: String
+
+    /// The type of data (frame, frameSet, or table)
+    public let type: DataType
 
     /// Description of what this output represents
     public let description: String?
@@ -16,16 +18,19 @@ public struct DataOutput: Codable {
 
     public init(
         name: String,
+        type: DataType,
         description: String? = nil,
         metadata: [String: Any]? = nil
     ) {
         self.name = name
+        self.type = type
         self.description = description
         self.metadata = metadata?.mapValues { AnyCodable($0) }
     }
 
     enum CodingKeys: String, CodingKey {
         case name
+        case type
         case description
         case metadata
     }
