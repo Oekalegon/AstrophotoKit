@@ -286,23 +286,39 @@ public actor PipelineRunner {
             throw ProcessorExecutionError.processorNotFound(processorID)
         }
 
-        // Prepare inputs and outputs
-        let inputs = try await prepareProcessInputs(process: process)
-        var outputs = try await prepareProcessOutputs(process: process)
+        // Mark process as running
+        var runningProcess = process
+        runningProcess.markAsRunning()
+        await processStack.update(process: runningProcess)
 
-        // Execute the processor (outputs are passed as inout to be instantiated)
-        try processor.execute(
-            inputs: inputs,
-            outputs: &outputs,
-            parameters: process.parameters,
-            device: device,
-            commandQueue: commandQueue
-        )
+        do {
+            // Prepare inputs and outputs
+            let inputs = try await prepareProcessInputs(process: runningProcess)
+            var outputs = try await prepareProcessOutputs(process: runningProcess)
 
-        // Update data stack with instantiated outputs
-        await updateProcessOutputs(outputs: outputs)
+            // Execute the processor (outputs are passed as inout to be instantiated)
+            try processor.execute(
+                inputs: inputs,
+                outputs: &outputs,
+                parameters: runningProcess.parameters,
+                device: device,
+                commandQueue: commandQueue
+            )
 
-        Logger.pipeline.info("Completed process: \(process.stepIdentifier)")
+            // Update data stack with instantiated outputs
+            await updateProcessOutputs(outputs: outputs)
+
+            // Mark process as completed
+            runningProcess.markAsCompleted()
+            await processStack.update(process: runningProcess)
+
+            Logger.pipeline.info("Completed process: \(runningProcess.stepIdentifier)")
+        } catch {
+            // Mark process as failed
+            runningProcess.markAsFailed(error: error)
+            await processStack.update(process: runningProcess)
+            throw error
+        }
     }
 
     /// Checks if pipeline should complete after an iteration with no progress

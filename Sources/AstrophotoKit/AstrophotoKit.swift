@@ -39,7 +39,8 @@ public struct AstrophotoKit {
             "GrayscaleShader",
             "GaussianBlurShader",
             "LocalMedianShader",
-            "BackgroundSubtractionShader"
+            "BackgroundSubtractionShader",
+            "ThresholdShader"
         ]
         if let shaderSource = loadShaderSource(requiredShaders: essentialShaders) {
             Logger.swiftfitsio.debug("Attempting to compile Metal library from source...")

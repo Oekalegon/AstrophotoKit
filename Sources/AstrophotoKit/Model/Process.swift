@@ -47,7 +47,7 @@ public struct Process {
     }
 
     /// The date and time the process was started.
-    public var startedAt: Date? { 
+    public var startedAt: Date? {
         for status in statusHistory {
             if case .running(let date, _) = status {
                 return date
@@ -57,15 +57,29 @@ public struct Process {
     }
 
     /// The date and time the process was finished.
-    public var finishedAt: Date? { 
+    public var finishedAt: Date? {
         for status in statusHistory {
             if case .completed(let date) = status {
                 return date
             } else if case .failed(let date, _) = status {
                 return date
+            } else if case .cancelled(let date) = status {
+                return date
             }
         }
         return nil
+    }
+
+    /// The duration of the process execution.
+    /// 
+    /// Returns the time difference between when the process started running
+    /// and when it finished (completed, failed, or cancelled).
+    /// Returns `nil` if the process hasn't started or hasn't finished yet.
+    public var duration: TimeInterval? {
+        guard let startTime = startedAt, let endTime = finishedAt else {
+            return nil
+        }
+        return endTime.timeIntervalSince(startTime)
     }
 
     public init(
@@ -133,6 +147,61 @@ public struct Process {
     public mutating func addOutputData(name: String, type: DataType) {
         let stepLinkID = "\(self.stepIdentifier).\(name)"
         self.outputData.append(.output(process: self.identifier, link: name, type: type, stepLinkID: stepLinkID))
+    }
+
+    /// Set the status of this process.
+    /// 
+    /// This method adds the new status to the beginning of the status history,
+    /// making it the current status.
+    /// - Parameter status: The new status to set
+    public mutating func setStatus(_ status: ProcessStatus) {
+        statusHistory.insert(status, at: 0)
+    }
+
+    /// Mark this process as running.
+    /// 
+    /// This method sets the process status to running with the current date and initial progress.
+    /// - Parameter progress: Optional progress value (default: 0.0)
+    /// - Parameter message: Optional progress message (default: "Starting execution")
+    public mutating func markAsRunning(progress: Double = 0.0, message: String = "Starting execution") {
+        let progressObj = Progress(value: progress, date: Date(), message: message)
+        setStatus(.running(date: Date(), progress: progressObj))
+    }
+
+    /// Mark this process as completed.
+    /// 
+    /// This method sets the process status to completed with the current date.
+    public mutating func markAsCompleted() {
+        setStatus(.completed(date: Date()))
+    }
+
+    /// Mark this process as failed.
+    /// 
+    /// This method sets the process status to failed with the current date and error.
+    /// - Parameter error: The error that caused the process to fail
+    public mutating func markAsFailed(error: Error) {
+        setStatus(.failed(date: Date(), error: error))
+    }
+
+    /// Mark this process as cancelled.
+    /// 
+    /// This method sets the process status to cancelled with the current date.
+    public mutating func markAsCancelled() {
+        setStatus(.cancelled(date: Date()))
+    }
+
+    /// Mark this process as paused.
+    /// 
+    /// This method sets the process status to paused with the current date.
+    public mutating func markAsPaused() {
+        setStatus(.paused(date: Date()))
+    }
+
+    /// Mark this process as resumed.
+    /// 
+    /// This method sets the process status to resumed with the current date.
+    public mutating func markAsResumed() {
+        setStatus(.resumed(date: Date()))
     }
 }
 

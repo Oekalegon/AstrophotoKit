@@ -3,8 +3,8 @@ import Foundation
 import Metal
 @testable import AstrophotoKit
 
-@Test("Star detection pipeline runs first three steps (grayscale, blur, and background)")
-func testStarDetectionPipelineFirstThreeSteps() async throws {
+@Test("Star detection pipeline runs first four steps (grayscale, blur, background, and threshold)")
+func testStarDetectionPipelineFirstFourSteps() async throws {
     // Get Metal device
     guard let device = MTLCreateSystemDefaultDevice() else {
         Issue.record("Metal device not available")
@@ -154,19 +154,51 @@ func testStarDetectionPipelineFirstThreeSteps() async throws {
         print("✓ Background level table: \(backgroundLevelTable.rowCount) row(s), \(backgroundLevelTable.columnCount) column(s)")
     }
 
+    // Check for thresholded_frame output (from fourth step)
+    // Find data by stepLinkID: "threshold.thresholded_frame"
+    let thresholdedData = outputs.first { data in
+        if case .output(_, _, _, let stepLinkID) = data.outputLink {
+            return stepLinkID == "threshold.thresholded_frame"
+        }
+        return false
+    }
+    #expect(thresholdedData != nil, "Should have thresholded_frame output")
+    if let thresholdedFrame = thresholdedData as? Frame {
+        #expect(thresholdedFrame.texture != nil, "Thresholded frame should be instantiated")
+        #expect(thresholdedFrame.isInstantiated, "Thresholded frame should be instantiated")
+        print("✓ Thresholded frame: \(thresholdedFrame.texture!.width)x\(thresholdedFrame.texture!.height)")
+    }
+
     // Verify process stack
     let processes = await runner.processStack.getAll()
     print("\n=== Process Stack ===")
     print("Total processes: \(processes.count)")
 
-    // Check that grayscale, blur, and background processes exist
+    // Check that grayscale, blur, background, and threshold processes exist
     let grayscaleProcess = processes.first { $0.stepIdentifier == "grayscale" }
     let blurProcess = processes.first { $0.stepIdentifier == "blur" }
     let backgroundProcess = processes.first { $0.stepIdentifier == "background" }
+    let thresholdProcess = processes.first { $0.stepIdentifier == "threshold" }
 
     #expect(grayscaleProcess != nil, "Should have grayscale process")
     #expect(blurProcess != nil, "Should have blur process")
     #expect(backgroundProcess != nil, "Should have background process")
+    #expect(thresholdProcess != nil, "Should have threshold process")
+
+    // Print process durations
+    print("\n=== Process Durations ===")
+    if let grayscale = grayscaleProcess, let duration = grayscale.duration {
+        print("Grayscale: \(String(format: "%.3f", duration))s")
+    }
+    if let blur = blurProcess, let duration = blur.duration {
+        print("Blur: \(String(format: "%.3f", duration))s")
+    }
+    if let background = backgroundProcess, let duration = background.duration {
+        print("Background: \(String(format: "%.3f", duration))s")
+    }
+    if let threshold = thresholdProcess, let duration = threshold.duration {
+        print("Threshold: \(String(format: "%.3f", duration))s")
+    }
 
     print("✓ Pipeline execution completed successfully")
 }

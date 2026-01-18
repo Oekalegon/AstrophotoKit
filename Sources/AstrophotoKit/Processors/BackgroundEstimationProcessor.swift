@@ -35,8 +35,24 @@ public struct BackgroundEstimationProcessor: Processor {
             "Estimating background (width: \(inputTexture.width), height: \(inputTexture.height))"
         )
 
-        // Default window size for local median estimation
-        let windowSize: Int32 = 50
+        // Get window size parameter (default: 50 to handle larger stars)
+        // Note: The window should be larger than the largest stars in the image
+        // A 50x50 window means 2500 reads per pixel, which is slower but more accurate
+        // For images with smaller stars, you can reduce this to improve performance
+        let windowSize: Int32
+        if let windowSizeParam = parameters["window_size"] {
+            if let intValue = windowSizeParam.intValue {
+                windowSize = Int32(intValue)
+            } else if let doubleValue = windowSizeParam.doubleValue {
+                windowSize = Int32(doubleValue)
+            } else {
+                throw ProcessorExecutionError.executionFailed("window_size parameter must be a number")
+            }
+        } else {
+            windowSize = 50  // Default: large enough to handle typical star sizes
+        }
+
+        Logger.processor.debug("Using window size: \(windowSize)x\(windowSize)")
 
         // Load shader library and functions
         let library = try ProcessorHelpers.loadShaderLibrary(device: device)

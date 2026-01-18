@@ -60,7 +60,10 @@ steps:
         type: frame
         from: blur.blurred_frame
         description: The blurred frame to estimate background from
-    parameters: []
+    parameters:
+      - name: window_size
+        default_value: 50
+        description: Window size for local median estimation (should be larger than largest stars)
     outputs:
       - name: background_frame
         type: frame

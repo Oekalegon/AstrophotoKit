@@ -372,6 +372,11 @@ public enum ColorSpace: String, Metadata {
     /// A RGB color space.
     case RGB
 
+    /// A binary color space.
+    /// 
+    /// This is a binary mask encoded as a grayscale image.
+    case binary
+
     /// An unknown color space.
     case unknown
 

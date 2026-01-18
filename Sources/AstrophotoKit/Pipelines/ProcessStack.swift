@@ -129,6 +129,16 @@ public actor ProcessStack {
         }
     }
 
+    /// Update a process in the stack
+    /// - Parameter process: The updated process
+    public func update(process: Process) {
+        guard let index = processes.firstIndex(where: { $0.identifier == process.identifier }) else {
+            Logger.pipeline.warning("Attempted to update process \(process.identifier) that doesn't exist in stack")
+            return
+        }
+        processes[index] = process
+    }
+
     /// Get all pending processes for which all input data is available (has been instantiated)
     /// - Parameter dataStack: The data stack to check for input data availability
     /// - Parameter excludeProcesses: Optional set of process identifiers to exclude (already executed)
@@ -136,7 +146,7 @@ public actor ProcessStack {
     public func getReadyPending(dataStack: DataStack, excludeProcesses: Set<UUID> = []) async -> [Process] {
         let pending = getPending()
         var ready: [Process] = []
-        
+
         for process in pending {
             // Skip processes that have already been executed
             if excludeProcesses.contains(process.identifier) {
@@ -145,7 +155,7 @@ public actor ProcessStack {
 
             // Check if all input data links have corresponding instantiated data
             var allInputsReady = true
-            
+
             for inputLink in process.inputData {
                 // Find the ProcessData for this input link (converted to output link internally)
                 guard let inputData = await dataStack.get(by: inputLink) else {
@@ -153,20 +163,21 @@ public actor ProcessStack {
                     allInputsReady = false
                     break
                 }
-                
+
                 // Check if the data is instantiated
                 if !inputData.isInstantiated {
                     allInputsReady = false
                     break
                 }
             }
-            
+
             if allInputsReady {
                 ready.append(process)
             }
         }
-        
+
         return ready
     }
 }
+
 

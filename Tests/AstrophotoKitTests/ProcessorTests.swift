@@ -3,8 +3,8 @@ import Foundation
 import Metal
 @testable import AstrophotoKit
 
-@Test("Grayscale, Gaussian blur, and background estimation processors work with FITS input")
-func testGrayscaleBlurAndBackgroundProcessors() async throws {
+@Test("Grayscale, Gaussian blur, background estimation, and threshold processors work with FITS input")
+func testGrayscaleBlurBackgroundAndThresholdProcessors() async throws {
     // Get Metal device
     guard let device = MTLCreateSystemDefaultDevice() else {
         Issue.record("Metal device not available")
@@ -154,6 +154,35 @@ func testGrayscaleBlurAndBackgroundProcessors() async throws {
     #expect(backgroundLevelTable.columnCount == 1, "Background level table should have 1 column")
     print("Background level table: \(backgroundLevelTable.rowCount) row(s), \(backgroundLevelTable.columnCount) column(s)")
 
-    // Test 4: Run all three processors in sequence (simulating pipeline)
-    print("Successfully tested grayscale, blur, and background estimation processors in sequence")
+    // Test 4: Threshold processor (using background-subtracted output as input)
+    let thresholdProcessor = ThresholdProcessor()
+    let thresholdInputs: [String: ProcessData] = ["input_frame": subtractedFrame]
+    let thresholdParameters: [String: Parameter] = [
+        "threshold_value": Parameter.double(3.0),
+        "method": Parameter.string("sigma")
+    ]
+    var thresholdOutputs: [String: ProcessData] = [
+        "thresholded_frame": Frame(type: .light, filter: .none, colorSpace: .greyscale, dataType: .float)
+    ]
+    try thresholdProcessor.execute(
+        inputs: thresholdInputs,
+        outputs: &thresholdOutputs,
+        parameters: thresholdParameters,
+        device: device,
+        commandQueue: commandQueue
+    )
+
+    // Verify threshold output
+    guard let thresholdedFrame = thresholdOutputs["thresholded_frame"] as? Frame else {
+        Issue.record("Threshold processor did not return thresholded_frame")
+        return
+    }
+    #expect(thresholdedFrame.texture != nil, "Thresholded frame should have a texture")
+    let thresholdedTexture = thresholdedFrame.texture!
+    #expect(thresholdedTexture.width == inputTexture.width, "Thresholded output should have same width as input")
+    #expect(thresholdedTexture.height == inputTexture.height, "Thresholded output should have same height as input")
+    print("Thresholded frame: \(thresholdedTexture.width)x\(thresholdedTexture.height), format: \(thresholdedTexture.pixelFormat)")
+
+    // Test 5: Run all four processors in sequence (simulating pipeline)
+    print("Successfully tested grayscale, blur, background estimation, and threshold processors in sequence")
 }

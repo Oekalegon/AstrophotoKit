@@ -38,6 +38,11 @@ public actor ProcessorRegistry {
         if implementations[backgroundEstimation.id] == nil {
             register(backgroundEstimation)
         }
+
+        let threshold = ThresholdProcessor()
+        if implementations[threshold.id] == nil {
+            register(threshold)
+        }
         // Add more processors here as they are created
     }
 
