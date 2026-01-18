@@ -3,8 +3,8 @@ import Foundation
 import Metal
 @testable import AstrophotoKit
 
-@Test("Grayscale and Gaussian blur processors work with FITS input")
-func testGrayscaleAndBlurProcessors() async throws {
+@Test("Grayscale, Gaussian blur, and background estimation processors work with FITS input")
+func testGrayscaleBlurAndBackgroundProcessors() async throws {
     // Get Metal device
     guard let device = MTLCreateSystemDefaultDevice() else {
         Issue.record("Metal device not available")
@@ -107,6 +107,53 @@ func testGrayscaleAndBlurProcessors() async throws {
         "Blur output: \(blurredTexture.width)x\(blurredTexture.height), format: \(blurredTexture.pixelFormat)"
     )
 
-    // Test 3: Run both processors in sequence (simulating pipeline)
-    print("Successfully tested grayscale and blur processors in sequence")
+    // Test 3: Background estimation processor (using blurred output as input)
+    let backgroundProcessor = BackgroundEstimationProcessor()
+    let backgroundInputs: [String: ProcessData] = ["input_frame": blurredFrame]
+    var backgroundOutputs: [String: ProcessData] = [
+        "background_frame": Frame(type: .light, filter: .none, colorSpace: .greyscale, dataType: .float),
+        "background_subtracted_frame": Frame(type: .light, filter: .none, colorSpace: .greyscale, dataType: .float),
+        "background_level": Table()
+    ]
+    try backgroundProcessor.execute(
+        inputs: backgroundInputs,
+        outputs: &backgroundOutputs,
+        parameters: [:],
+        device: device,
+        commandQueue: commandQueue
+    )
+
+    // Verify background outputs
+    guard let backgroundFrame = backgroundOutputs["background_frame"] as? Frame else {
+        Issue.record("Background processor did not return background_frame")
+        return
+    }
+    #expect(backgroundFrame.texture != nil, "Background frame should have a texture")
+    let backgroundTexture = backgroundFrame.texture!
+    #expect(backgroundTexture.width == inputTexture.width, "Background output should have same width as input")
+    #expect(backgroundTexture.height == inputTexture.height, "Background output should have same height as input")
+    print("Background frame: \(backgroundTexture.width)x\(backgroundTexture.height), format: \(backgroundTexture.pixelFormat)")
+
+    guard let subtractedFrame = backgroundOutputs["background_subtracted_frame"] as? Frame else {
+        Issue.record("Background processor did not return background_subtracted_frame")
+        return
+    }
+    #expect(subtractedFrame.texture != nil, "Background-subtracted frame should have a texture")
+    let subtractedTexture = subtractedFrame.texture!
+    #expect(subtractedTexture.width == inputTexture.width, "Background-subtracted output should have same width as input")
+    #expect(subtractedTexture.height == inputTexture.height, "Background-subtracted output should have same height as input")
+    print("Background-subtracted frame: \(subtractedTexture.width)x\(subtractedTexture.height), format: \(subtractedTexture.pixelFormat)")
+
+    guard let backgroundLevelTable = backgroundOutputs["background_level"] as? Table else {
+        Issue.record("Background processor did not return background_level")
+        return
+    }
+    #expect(backgroundLevelTable.isInstantiated, "Background level table should be instantiated")
+    #expect(backgroundLevelTable.dataFrame != nil, "Background level table should have DataFrame")
+    #expect(backgroundLevelTable.rowCount == 1, "Background level table should have 1 row")
+    #expect(backgroundLevelTable.columnCount == 1, "Background level table should have 1 column")
+    print("Background level table: \(backgroundLevelTable.rowCount) row(s), \(backgroundLevelTable.columnCount) column(s)")
+
+    // Test 4: Run all three processors in sequence (simulating pipeline)
+    print("Successfully tested grayscale, blur, and background estimation processors in sequence")
 }

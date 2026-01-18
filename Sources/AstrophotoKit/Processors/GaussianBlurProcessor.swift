@@ -24,15 +24,8 @@ public struct GaussianBlurProcessor: Processor {
         device: MTLDevice,
         commandQueue: MTLCommandQueue
     ) throws {
-
-        // Get input frame
-        guard let inputFrame = inputs["input_frame"] as? Frame else {
-            throw ProcessorExecutionError.missingRequiredInput("input_frame")
-        }
-
-        guard let inputTexture = inputFrame.texture else {
-            throw ProcessorExecutionError.executionFailed("Input frame texture is not available")
-        }
+        // Validate input frame
+        let (_, inputTexture) = try ProcessorHelpers.validateInputFrame(from: inputs)
 
         // Get radius parameter (default: 3.0)
         let radius: Float
@@ -48,12 +41,8 @@ public struct GaussianBlurProcessor: Processor {
 
         Logger.processor.debug("Applying Gaussian blur with radius: \(radius)")
 
-        // Load shader library
-        guard let library = AstrophotoKit.makeShaderLibrary(device: device) else {
-            throw ProcessorExecutionError.couldNotCreateResource("Could not load Metal shader library")
-        }
-
-        // Load compute functions
+        // Load shader library and functions
+        let library = try ProcessorHelpers.loadShaderLibrary(device: device)
         guard let horizontalFunction = library.makeFunction(name: "gaussian_blur_horizontal"),
               let verticalFunction = library.makeFunction(name: "gaussian_blur_vertical") else {
             throw ProcessorExecutionError.couldNotCreateResource(
@@ -62,119 +51,75 @@ public struct GaussianBlurProcessor: Processor {
         }
 
         // Create compute pipeline states
-        let horizontalPipelineState: MTLComputePipelineState
-        let verticalPipelineState: MTLComputePipelineState
+        let horizontalPipelineState = try ProcessorHelpers.createComputePipelineState(
+            function: horizontalFunction,
+            device: device
+        )
+        let verticalPipelineState = try ProcessorHelpers.createComputePipelineState(
+            function: verticalFunction,
+            device: device
+        )
 
-        do {
-            horizontalPipelineState = try device.makeComputePipelineState(function: horizontalFunction)
-            verticalPipelineState = try device.makeComputePipelineState(function: verticalFunction)
-        } catch {
-            throw ProcessorExecutionError.couldNotCreateResource(
-                "Could not create compute pipeline states: \(error.localizedDescription)"
-            )
-        }
-
-        // Create intermediate texture for horizontal pass
-        let intermediateDescriptor = MTLTextureDescriptor.texture2DDescriptor(
+        // Create textures
+        let intermediateDescriptor = ProcessorHelpers.createTextureDescriptor(
             pixelFormat: inputTexture.pixelFormat,
             width: inputTexture.width,
-            height: inputTexture.height,
-            mipmapped: false
+            height: inputTexture.height
         )
-        intermediateDescriptor.usage = [.shaderRead, .shaderWrite]
+        let intermediateTexture = try ProcessorHelpers.createTexture(
+            descriptor: intermediateDescriptor,
+            device: device
+        )
 
-        guard let intermediateTexture = device.makeTexture(descriptor: intermediateDescriptor) else {
-            throw ProcessorExecutionError.couldNotCreateResource("Could not create intermediate texture")
-        }
-
-        // Create output texture
-        let outputDescriptor = MTLTextureDescriptor.texture2DDescriptor(
+        let outputDescriptor = ProcessorHelpers.createTextureDescriptor(
             pixelFormat: inputTexture.pixelFormat,
             width: inputTexture.width,
-            height: inputTexture.height,
-            mipmapped: false
+            height: inputTexture.height
         )
-        outputDescriptor.usage = [.shaderRead, .shaderWrite]
-
-        guard let outputTexture = device.makeTexture(descriptor: outputDescriptor) else {
-            throw ProcessorExecutionError.couldNotCreateResource("Could not create output texture")
-        }
+        let outputTexture = try ProcessorHelpers.createTexture(
+            descriptor: outputDescriptor,
+            device: device
+        )
 
         // Create buffer for radius parameter
         var radiusValue = radius
-        guard let radiusBuffer = device.makeBuffer(
-            bytes: &radiusValue,
-            length: MemoryLayout<Float>.size,
-            options: []
-        ) else {
-            throw ProcessorExecutionError.couldNotCreateResource("Could not create radius buffer")
-        }
+        let radiusBuffer = try ProcessorHelpers.createBuffer(from: &radiusValue, device: device)
 
         // Create command buffer
-        guard let commandBuffer = commandQueue.makeCommandBuffer() else {
-            throw ProcessorExecutionError.couldNotCreateResource("Could not create command buffer")
-        }
+        let commandBuffer = try ProcessorHelpers.createCommandBuffer(commandQueue: commandQueue)
+
+        // Calculate threadgroups
+        let (threadgroupSize, threadgroupsPerGrid) = ProcessorHelpers.calculateThreadgroups(for: inputTexture)
 
         // Pass 1: Horizontal blur (input -> intermediate)
-        guard let horizontalEncoder = commandBuffer.makeComputeCommandEncoder() else {
-            throw ProcessorExecutionError.couldNotCreateResource("Could not create compute encoder")
-        }
-
+        let horizontalEncoder = try ProcessorHelpers.createComputeEncoder(commandBuffer: commandBuffer)
         horizontalEncoder.setComputePipelineState(horizontalPipelineState)
         horizontalEncoder.setTexture(inputTexture, index: 0)
         horizontalEncoder.setTexture(intermediateTexture, index: 1)
         horizontalEncoder.setBuffer(radiusBuffer, offset: 0, index: 0)
-
-        // Calculate threadgroup size
-        let threadgroupSize = MTLSize(width: 16, height: 16, depth: 1)
-        let threadgroupsPerGrid = MTLSize(
-            width: (inputTexture.width + threadgroupSize.width - 1) / threadgroupSize.width,
-            height: (inputTexture.height + threadgroupSize.height - 1) / threadgroupSize.height,
-            depth: 1
-        )
-
         horizontalEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadgroupSize)
         horizontalEncoder.endEncoding()
 
         // Pass 2: Vertical blur (intermediate -> output)
-        guard let verticalEncoder = commandBuffer.makeComputeCommandEncoder() else {
-            throw ProcessorExecutionError.couldNotCreateResource(
-                "Could not create compute encoder for vertical pass"
-            )
-        }
-
+        let verticalEncoder = try ProcessorHelpers.createComputeEncoder(commandBuffer: commandBuffer)
         verticalEncoder.setComputePipelineState(verticalPipelineState)
         verticalEncoder.setTexture(intermediateTexture, index: 0)
         verticalEncoder.setTexture(outputTexture, index: 1)
         verticalEncoder.setBuffer(radiusBuffer, offset: 0, index: 0)
-
         verticalEncoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadgroupSize)
         verticalEncoder.endEncoding()
 
-        // Commit and wait for completion
-        commandBuffer.commit()
-        commandBuffer.waitUntilCompleted()
+        // Execute command buffer
+        try ProcessorHelpers.executeCommandBuffer(commandBuffer)
 
-        // Check for errors
-        if let error = commandBuffer.error {
-            throw ProcessorExecutionError.executionFailed("GPU compute error: \(error.localizedDescription)")
-        }
-
-        // Get output frame and instantiate it with the blurred texture
-        guard var outputFrame = outputs["blurred_frame"] as? Frame else {
-            throw ProcessorExecutionError.missingRequiredInput("blurred_frame")
-        }
-
-        // Modify the existing frame instead of creating a new one (to preserve identifier)
-        // Update the texture - instantiatedAt will be set automatically when texture is set (via didSet)
-        outputFrame.texture = outputTexture
-        // Note: colorSpace and dataType are computed from texture format, so they will be set automatically
-
-        // Update the outputs dictionary with the modified frame
-        outputs["blurred_frame"] = outputFrame
+        // Update output frame
+        try ProcessorHelpers.updateOutputFrame(
+            outputs: &outputs,
+            outputName: "blurred_frame",
+            texture: outputTexture
+        )
 
         Logger.processor.debug("Gaussian blur completed successfully")
     }
 }
-
 

@@ -3,8 +3,8 @@ import Foundation
 import Metal
 @testable import AstrophotoKit
 
-@Test("Star detection pipeline runs first two steps (grayscale and blur)")
-func testStarDetectionPipelineFirstTwoSteps() async throws {
+@Test("Star detection pipeline runs first three steps (grayscale, blur, and background)")
+func testStarDetectionPipelineFirstThreeSteps() async throws {
     // Get Metal device
     guard let device = MTLCreateSystemDefaultDevice() else {
         Issue.record("Metal device not available")
@@ -107,17 +107,66 @@ func testStarDetectionPipelineFirstTwoSteps() async throws {
         print("✓ Blurred frame: \(blurredFrame.texture!.width)x\(blurredFrame.texture!.height)")
     }
 
+    // Check for background_frame output (from third step)
+    // Find data by stepLinkID: "background.background_frame"
+    let backgroundData = outputs.first { data in
+        if case .output(_, _, _, let stepLinkID) = data.outputLink {
+            return stepLinkID == "background.background_frame"
+        }
+        return false
+    }
+    #expect(backgroundData != nil, "Should have background_frame output")
+    if let backgroundFrame = backgroundData as? Frame {
+        #expect(backgroundFrame.texture != nil, "Background frame should be instantiated")
+        #expect(backgroundFrame.isInstantiated, "Background frame should be instantiated")
+        print("✓ Background frame: \(backgroundFrame.texture!.width)x\(backgroundFrame.texture!.height)")
+    }
+
+    // Check for background_subtracted_frame output (from third step)
+    // Find data by stepLinkID: "background.background_subtracted_frame"
+    let subtractedData = outputs.first { data in
+        if case .output(_, _, _, let stepLinkID) = data.outputLink {
+            return stepLinkID == "background.background_subtracted_frame"
+        }
+        return false
+    }
+    #expect(subtractedData != nil, "Should have background_subtracted_frame output")
+    if let subtractedFrame = subtractedData as? Frame {
+        #expect(subtractedFrame.texture != nil, "Background-subtracted frame should be instantiated")
+        #expect(subtractedFrame.isInstantiated, "Background-subtracted frame should be instantiated")
+        print("✓ Background-subtracted frame: \(subtractedFrame.texture!.width)x\(subtractedFrame.texture!.height)")
+    }
+
+    // Check for background_level table output (from third step)
+    // Find data by stepLinkID: "background.background_level"
+    let backgroundLevelData = outputs.first { data in
+        if case .output(_, _, _, let stepLinkID) = data.outputLink {
+            return stepLinkID == "background.background_level"
+        }
+        return false
+    }
+    #expect(backgroundLevelData != nil, "Should have background_level output")
+    if let backgroundLevelTable = backgroundLevelData as? Table {
+        #expect(backgroundLevelTable.isInstantiated, "Background level table should be instantiated")
+        #expect(backgroundLevelTable.dataFrame != nil, "Background level table should have DataFrame")
+        #expect(backgroundLevelTable.rowCount == 1, "Background level table should have 1 row")
+        #expect(backgroundLevelTable.columnCount == 1, "Background level table should have 1 column")
+        print("✓ Background level table: \(backgroundLevelTable.rowCount) row(s), \(backgroundLevelTable.columnCount) column(s)")
+    }
+
     // Verify process stack
     let processes = await runner.processStack.getAll()
     print("\n=== Process Stack ===")
     print("Total processes: \(processes.count)")
 
-    // Check that grayscale and blur processes exist
+    // Check that grayscale, blur, and background processes exist
     let grayscaleProcess = processes.first { $0.stepIdentifier == "grayscale" }
     let blurProcess = processes.first { $0.stepIdentifier == "blur" }
+    let backgroundProcess = processes.first { $0.stepIdentifier == "background" }
 
     #expect(grayscaleProcess != nil, "Should have grayscale process")
     #expect(blurProcess != nil, "Should have blur process")
+    #expect(backgroundProcess != nil, "Should have background process")
 
     print("✓ Pipeline execution completed successfully")
 }

@@ -35,7 +35,12 @@ public struct AstrophotoKit {
         // Load the shader source files from package resources and combine them
         // For now, only load the essential shaders to avoid duplicate definition errors
         // TODO: Fix duplicate struct definitions across shader files or use include guards
-        let essentialShaders = ["GrayscaleShader", "GaussianBlurShader"]
+        let essentialShaders = [
+            "GrayscaleShader",
+            "GaussianBlurShader",
+            "LocalMedianShader",
+            "BackgroundSubtractionShader"
+        ]
         if let shaderSource = loadShaderSource(requiredShaders: essentialShaders) {
             Logger.swiftfitsio.debug("Attempting to compile Metal library from source...")
             do {

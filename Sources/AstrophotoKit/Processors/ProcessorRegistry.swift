@@ -33,6 +33,11 @@ public actor ProcessorRegistry {
         if implementations[gaussianBlur.id] == nil {
             register(gaussianBlur)
         }
+
+        let backgroundEstimation = BackgroundEstimationProcessor()
+        if implementations[backgroundEstimation.id] == nil {
+            register(backgroundEstimation)
+        }
         // Add more processors here as they are created
     }
 
