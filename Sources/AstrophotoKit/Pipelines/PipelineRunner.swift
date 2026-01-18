@@ -3,19 +3,19 @@ import Metal
 import os
 
 /// The runner for a pipeline.
-///
+/// 
 /// The runner is responsible for executing the pipeline.
 /// It is responsible for tracking the data that is available for the pipeline
 /// and the processes that are currently running in the pipeline.
 public actor PipelineRunner {
 
     /// The pipeline to execute.
-    ///
+    /// 
     /// The pipeline is the pipeline to execute.
     private let pipeline: Pipeline
 
     /// The data stack for the pipeline.
-    ///
+    /// 
     /// The data stack is used to track the data that is available for the pipeline.
     public let dataStack: DataStack
 
@@ -100,11 +100,15 @@ public actor PipelineRunner {
                 excludeProcesses: executedProcessIDs
             )
 
+            Logger.pipeline.debug("Iteration \(iterationCount): Found \(readyProcesses.count) ready processes")
+            
             if readyProcesses.isEmpty {
+                // Log why we're stopping
+                let pendingCount = await processStack.getPending().count
+                let totalCount = await processStack.count()
+                Logger.pipeline.debug("No ready processes. Pending: \(pendingCount), Total: \(totalCount), Executed: \(executedProcessIDs.count)")
                 break
             }
-
-            Logger.pipeline.debug("Iteration \(iterationCount): Found \(readyProcesses.count) ready processes")
 
             // Filter processes to only those with available processors
             let (processesToExecute, processesWithoutProcessors) = await filterProcessesWithProcessors(
@@ -436,8 +440,8 @@ public actor PipelineRunner {
     /// Sets up input links for ProcessData that is referenced by a process
     /// - Parameter process: The process to set up input links for
     private func setupProcessInputLinks(process: Process) async {
-        for inputLink in process.inputData {
-            if case .input(let processId, let linkName, let type, let collectionMode, let stepLinkID) = inputLink {
+            for inputLink in process.inputData {
+                if case .input(let processId, let linkName, let type, let collectionMode, let stepLinkID) = inputLink {
                 guard var processData = await dataStack.get(
                     by: .input(
                         process: processId,
@@ -447,33 +451,33 @@ public actor PipelineRunner {
                         stepLinkID: stepLinkID
                     )
                 ) else {
-                    continue
-                }
+                        continue
+                    }
                 processData.addInputLink(
                     process: process.identifier,
                     link: linkName,
                     collectionMode: collectionMode
                 )
-                _ = await dataStack.update(data: processData)
+                    _ = await dataStack.update(data: processData)
             }
-        }
-    }
+                }
+            }   
 
     /// Creates output data for a process and adds it to the data stack
     /// - Parameter process: The process to create output data for
     /// - Throws: PipelineConfigurationError if output data creation fails
     private func createProcessOutputData(process: Process) async throws {
-        for outputLink in process.outputData {
-            if case .output(_, _, let type, _) = outputLink {
-                if let outputData = try self.createOutputData(
-                    type: type,
-                    outputLink: outputLink
-                ) {
-                    await dataStack.add(data: outputData)
+            for outputLink in process.outputData {
+                if case .output(_, _, let type, _) = outputLink {
+                    if let outputData = try self.createOutputData(
+                        type: type,
+                        outputLink: outputLink
+                    ) {
+                        await dataStack.add(data: outputData)
+                    }
                 }
             }
-        }
-    }
+    }   
 
     private func createInitialInputData(
         from inputs: [String: Any],
@@ -483,6 +487,35 @@ public actor PipelineRunner {
     ) async throws {
         // Create the initial input data for the pipeline.
         Logger.pipeline.debug("Creating initial input data for the pipeline")
+        
+        // Collect expected input names from pipeline steps (where 'from' doesn't contain a dot)
+        let expectedInputNames = Set(pipeline.steps.flatMap { step in
+            step.dataInputs.compactMap { dataInput in
+                // If 'from' doesn't contain a dot, it's a pipeline input
+                if !dataInput.from.contains(".") {
+                    return dataInput.from
+                }
+                return nil
+            }
+        })
+        
+        // Validate that provided inputs match expected names
+        let providedInputNames = Set(inputs.keys)
+        if providedInputNames != expectedInputNames {
+            let missing = expectedInputNames.subtracting(providedInputNames)
+            let extra = providedInputNames.subtracting(expectedInputNames)
+            var errorMsg = "Input name mismatch. "
+            if !missing.isEmpty {
+                errorMsg += "Missing inputs: \(missing.joined(separator: ", ")). "
+            }
+            if !extra.isEmpty {
+                errorMsg += "Unexpected inputs: \(extra.joined(separator: ", ")). "
+            }
+            errorMsg += "Expected: \(expectedInputNames.sorted().joined(separator: ", ")). Provided: \(providedInputNames.sorted().joined(separator: ", "))"
+            Logger.pipeline.error("\(errorMsg)")
+            throw ProcessorExecutionError.executionFailed(errorMsg)
+        }
+        
         for (key, value) in inputs {
             // Infer data type from the input value
             let dataType: DataType
@@ -496,8 +529,9 @@ public actor PipelineRunner {
                 Logger.pipeline.error("Cannot infer data type for input: \(type(of: value))")
                 fatalError("Cannot infer data type for input: \(type(of: value))")
             }
-
+            
             // For initial input data, stepLinkID follows the pattern "initial.input_name"
+            // Use the key which should now match the expected input name from the pipeline
             let stepLinkID = "initial.\(key)"
             let inputData = try self.createInputData(
                 from: value,
@@ -509,7 +543,7 @@ public actor PipelineRunner {
                     stepLinkID: stepLinkID
                 ),
             )
-            Logger.pipeline.debug("Created input data \(inputData.identifier)")
+            Logger.pipeline.debug("Created input data \(inputData.identifier) with stepLinkID: \(stepLinkID)")
             await dataStack.add(data: inputData)
         }
     }

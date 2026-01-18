@@ -89,7 +89,13 @@ public actor DataStack {
                 // This handles both initial input data and step output data that haven't been connected yet
                 // Match by stepLinkID and type only (linkName differs between input parameter name and output name)
                 if case .output(_, _, let dataLinkType, let dataStepLinkID) = dataItem.outputLink {
-                    return linkType == dataLinkType && stepLinkID == dataStepLinkID
+                    let matches = linkType == dataLinkType && stepLinkID == dataStepLinkID
+                    if !matches {
+                        Logger.pipeline.debug("DataStack.get: No match for input link '\(linkName)' (stepLinkID: '\(stepLinkID)', type: \(linkType.rawValue)) against outputLink (stepLinkID: '\(dataStepLinkID)', type: \(dataLinkType.rawValue))")
+                    }
+                    return matches
+                } else {
+                    Logger.pipeline.debug("DataStack.get: Data item \(dataItem.identifier) has no outputLink")
                 }
                 return false
             }

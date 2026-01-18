@@ -147,9 +147,12 @@ public actor ProcessStack {
         let pending = getPending()
         var ready: [Process] = []
 
+        Logger.pipeline.debug("getReadyPending: Checking \(pending.count) pending processes")
+
         for process in pending {
             // Skip processes that have already been executed
             if excludeProcesses.contains(process.identifier) {
+                Logger.pipeline.debug("Skipping process \(process.identifier) (already executed)")
                 continue
             }
 
@@ -160,22 +163,28 @@ public actor ProcessStack {
                 // Find the ProcessData for this input link (converted to output link internally)
                 guard let inputData = await dataStack.get(by: inputLink) else {
                     // Input data not found, so not ready
+                    if case .input(_, let linkName, let linkType, _, let stepLinkID) = inputLink {
+                        Logger.pipeline.debug("Process \(process.identifier) not ready: input data not found for link '\(linkName)' (stepLinkID: '\(stepLinkID)', type: \(linkType.rawValue))")
+                    }
                     allInputsReady = false
                     break
                 }
 
                 // Check if the data is instantiated
                 if !inputData.isInstantiated {
+                    Logger.pipeline.debug("Process \(process.identifier) not ready: input data \(inputData.identifier) not instantiated")
                     allInputsReady = false
                     break
                 }
             }
 
             if allInputsReady {
+                Logger.pipeline.debug("Process \(process.identifier) is ready")
                 ready.append(process)
             }
         }
 
+        Logger.pipeline.debug("getReadyPending: Found \(ready.count) ready processes out of \(pending.count) pending")
         return ready
     }
 }
