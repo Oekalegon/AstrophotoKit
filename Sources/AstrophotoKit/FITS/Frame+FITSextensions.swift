@@ -22,8 +22,9 @@ extension Frame {
         outputProcess: ProcessDataLink? = nil,
         inputProcesses: [ProcessDataLink] = []
     ) throws {
-        // Create the texture from the FITS image using the appropriate pixel format
-        let grayscaleTexture = try fitsImage.createMetalTexture(device: device, pixelFormat: fitsImage.dataType.metalPixelFormat)
+        // Create the texture from the FITS image as r32Float (pixelData is always Float32)
+        // This ensures correct data layout regardless of original FITS data type
+        let grayscaleTexture = try fitsImage.createMetalTexture(device: device, pixelFormat: .r32Float)
         
         // Convert to RGBA for consistent display format (prevents grainy appearance)
         let texture: MTLTexture

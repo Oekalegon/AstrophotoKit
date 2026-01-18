@@ -422,13 +422,21 @@ extension FITSFile {
 /// Extension to create Metal resources from FITS images
 extension FITSImage {
     /// Creates a Metal texture from the FITS image data
+    /// 
+    /// Note: `pixelData` is always stored as `[Float32]` (normalized), so the texture
+    /// is always created as `.r32Float` format regardless of the original FITS data type.
+    /// The original data type is preserved in the `dataType` field for reference.
     /// - Parameters:
     ///   - device: The Metal device
-    ///   - pixelFormat: Optional pixel format (defaults to r32Float)
+    ///   - pixelFormat: Optional pixel format (defaults to r32Float, which matches pixelData format)
     /// - Returns: A Metal texture containing the image data
     public func createMetalTexture(device: MTLDevice, pixelFormat: MTLPixelFormat = .r32Float) throws -> MTLTexture {
+        // pixelData is always [Float32], so we must use .r32Float format
+        // Using a different format would require data conversion and could cause issues
+        let actualFormat: MTLPixelFormat = .r32Float
+        
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: pixelFormat,
+            pixelFormat: actualFormat,
             width: width,
             height: height,
             mipmapped: false
@@ -442,8 +450,11 @@ extension FITSImage {
         let region = MTLRegion(origin: MTLOrigin(x: 0, y: 0, z: 0),
                               size: MTLSize(width: width, height: height, depth: 1))
         
+        // Calculate bytes per row for r32Float format
+        let bytesPerRow = width * MemoryLayout<Float32>.size
+        
         pixelData.withUnsafeBytes { bytes in
-            texture.replace(region: region, mipmapLevel: 0, withBytes: bytes.baseAddress!, bytesPerRow: width * MemoryLayout<Float32>.size)
+            texture.replace(region: region, mipmapLevel: 0, withBytes: bytes.baseAddress!, bytesPerRow: bytesPerRow)
         }
         
         return texture
