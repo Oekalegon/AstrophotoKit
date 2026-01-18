@@ -7,6 +7,9 @@ extension Frame {
     /// This initializer creates a Frame instance from a FITSImage, including creating
     /// the Metal texture from the image data. Metadata such as frame type and filter
     /// are extracted from the FITS header if available.
+    /// 
+    /// The texture is converted to RGBA format for consistent processing and display,
+    /// similar to how the old implementation handled FITS images.
     /// - Parameters:
     ///   - fitsImage: The FITS image to create the frame from
     ///   - device: The Metal device to use for creating the texture
@@ -20,7 +23,16 @@ extension Frame {
         inputProcesses: [ProcessDataLink] = []
     ) throws {
         // Create the texture from the FITS image using the appropriate pixel format
-        let texture = try fitsImage.createMetalTexture(device: device, pixelFormat: fitsImage.dataType.metalPixelFormat)
+        let grayscaleTexture = try fitsImage.createMetalTexture(device: device, pixelFormat: fitsImage.dataType.metalPixelFormat)
+        
+        // Convert to RGBA for consistent display format (prevents grainy appearance)
+        let texture: MTLTexture
+        if grayscaleTexture.pixelFormat != .rgba32Float {
+            let converter = try GrayscaleToRGBA(device: device)
+            texture = try converter.convert(grayscaleTexture)
+        } else {
+            texture = grayscaleTexture
+        }
 
         // Determine color space from the texture's pixel format
         let colorSpace = ColorSpace.from(metalPixelFormat: texture.pixelFormat) ?? .greyscale

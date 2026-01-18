@@ -146,7 +146,7 @@ func testStarDetectionPipelineWithOverlay() async throws {
         return false
     }
     #expect(backgroundLevelData != nil, "Should have background_level output")
-    if let backgroundLevelTable = backgroundLevelData as? Table {
+    if let backgroundLevelTable = backgroundLevelData as? TableData {
         #expect(backgroundLevelTable.isInstantiated, "Background level table should be instantiated")
         #expect(backgroundLevelTable.dataFrame != nil, "Background level table should have DataFrame")
         #expect(backgroundLevelTable.rowCount == 1, "Background level table should have 1 row")
@@ -214,7 +214,7 @@ func testStarDetectionPipelineWithOverlay() async throws {
         return false
     }
     #expect(pixelCoordinatesData != nil, "Should have pixel_coordinates output")
-    if let pixelCoordinatesTable = pixelCoordinatesData as? Table {
+    if let pixelCoordinatesTable = pixelCoordinatesData as? TableData {
         #expect(pixelCoordinatesTable.isInstantiated, "Pixel coordinates table should be instantiated")
         #expect(pixelCoordinatesTable.dataFrame != nil, "Pixel coordinates table should have DataFrame")
         print("✓ Pixel coordinates table: \(pixelCoordinatesTable.rowCount) row(s), " +
@@ -243,7 +243,7 @@ func testStarDetectionPipelineWithOverlay() async throws {
         return false
     }
     #expect(quadsData != nil, "Should have quads output")
-    if let quadsTable = quadsData as? Table {
+    if let quadsTable = quadsData as? TableData {
         #expect(quadsTable.isInstantiated, "Quads table should be instantiated")
         #expect(quadsTable.dataFrame != nil, "Quads table should have DataFrame")
         print("✓ Quads table: \(quadsTable.rowCount) row(s), \(quadsTable.columnCount) column(s)")
@@ -365,6 +365,5 @@ func testStarDetectionPipelineWithOverlay() async throws {
             Issue.record("Failed to save JPEG: \(error.localizedDescription)")
         }
     }
-
     print("✓ Pipeline execution completed successfully")
 }

@@ -113,7 +113,7 @@ func testGrayscaleBlurBackgroundThresholdErosionAndDilationProcessors() async th
     var backgroundOutputs: [String: ProcessData] = [
         "background_frame": Frame(type: .light, filter: .none, colorSpace: .greyscale, dataType: .float),
         "background_subtracted_frame": Frame(type: .light, filter: .none, colorSpace: .greyscale, dataType: .float),
-        "background_level": Table()
+        "background_level": TableData()
     ]
     try backgroundProcessor.execute(
         inputs: backgroundInputs,
@@ -144,7 +144,7 @@ func testGrayscaleBlurBackgroundThresholdErosionAndDilationProcessors() async th
     #expect(subtractedTexture.height == inputTexture.height, "Background-subtracted output should have same height as input")
     print("Background-subtracted frame: \(subtractedTexture.width)x\(subtractedTexture.height), format: \(subtractedTexture.pixelFormat)")
 
-    guard let backgroundLevelTable = backgroundOutputs["background_level"] as? Table else {
+    guard let backgroundLevelTable = backgroundOutputs["background_level"] as? TableData else {
         Issue.record("Background processor did not return background_level")
         return
     }
