@@ -3,8 +3,8 @@ import Foundation
 import Metal
 @testable import AstrophotoKit
 
-@Test("Grayscale, Gaussian blur, background estimation, and threshold processors work with FITS input")
-func testGrayscaleBlurBackgroundAndThresholdProcessors() async throws {
+@Test("Grayscale, Gaussian blur, background estimation, threshold, erosion, and dilation processors work with FITS input")
+func testGrayscaleBlurBackgroundThresholdErosionAndDilationProcessors() async throws {
     // Get Metal device
     guard let device = MTLCreateSystemDefaultDevice() else {
         Issue.record("Metal device not available")
@@ -183,6 +183,62 @@ func testGrayscaleBlurBackgroundAndThresholdProcessors() async throws {
     #expect(thresholdedTexture.height == inputTexture.height, "Thresholded output should have same height as input")
     print("Thresholded frame: \(thresholdedTexture.width)x\(thresholdedTexture.height), format: \(thresholdedTexture.pixelFormat)")
 
-    // Test 5: Run all four processors in sequence (simulating pipeline)
-    print("Successfully tested grayscale, blur, background estimation, and threshold processors in sequence")
+    // Test 5: Erosion processor (using thresholded output as input)
+    let erosionProcessor = ErosionProcessor()
+    let erosionInputs: [String: ProcessData] = ["input_frame": thresholdedFrame]
+    let erosionParameters: [String: Parameter] = [
+        "kernel_size": Parameter.int(3)
+    ]
+    var erosionOutputs: [String: ProcessData] = [
+        "eroded_frame": Frame(type: .light, filter: .none, colorSpace: .greyscale, dataType: .float)
+    ]
+    try erosionProcessor.execute(
+        inputs: erosionInputs,
+        outputs: &erosionOutputs,
+        parameters: erosionParameters,
+        device: device,
+        commandQueue: commandQueue
+    )
+
+    // Verify erosion output
+    guard let erodedFrame = erosionOutputs["eroded_frame"] as? Frame else {
+        Issue.record("Erosion processor did not return eroded_frame")
+        return
+    }
+    #expect(erodedFrame.texture != nil, "Eroded frame should have a texture")
+    let erodedTexture = erodedFrame.texture!
+    #expect(erodedTexture.width == inputTexture.width, "Eroded output should have same width as input")
+    #expect(erodedTexture.height == inputTexture.height, "Eroded output should have same height as input")
+    print("Eroded frame: \(erodedTexture.width)x\(erodedTexture.height), format: \(erodedTexture.pixelFormat)")
+
+    // Test 6: Dilation processor (using eroded output as input)
+    let dilationProcessor = DilationProcessor()
+    let dilationInputs: [String: ProcessData] = ["input_frame": erodedFrame]
+    let dilationParameters: [String: Parameter] = [
+        "kernel_size": Parameter.int(3)
+    ]
+    var dilationOutputs: [String: ProcessData] = [
+        "dilated_frame": Frame(type: .light, filter: .none, colorSpace: .greyscale, dataType: .float)
+    ]
+    try dilationProcessor.execute(
+        inputs: dilationInputs,
+        outputs: &dilationOutputs,
+        parameters: dilationParameters,
+        device: device,
+        commandQueue: commandQueue
+    )
+
+    // Verify dilation output
+    guard let dilatedFrame = dilationOutputs["dilated_frame"] as? Frame else {
+        Issue.record("Dilation processor did not return dilated_frame")
+        return
+    }
+    #expect(dilatedFrame.texture != nil, "Dilated frame should have a texture")
+    let dilatedTexture = dilatedFrame.texture!
+    #expect(dilatedTexture.width == inputTexture.width, "Dilated output should have same width as input")
+    #expect(dilatedTexture.height == inputTexture.height, "Dilated output should have same height as input")
+    print("Dilated frame: \(dilatedTexture.width)x\(dilatedTexture.height), format: \(dilatedTexture.pixelFormat)")
+
+    // Test 7: Run all six processors in sequence (simulating pipeline)
+    print("Successfully tested grayscale, blur, background estimation, threshold, erosion, and dilation processors in sequence")
 }

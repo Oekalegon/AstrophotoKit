@@ -3,8 +3,8 @@ import Foundation
 import Metal
 @testable import AstrophotoKit
 
-@Test("Star detection pipeline runs first four steps (grayscale, blur, background, and threshold)")
-func testStarDetectionPipelineFirstFourSteps() async throws {
+@Test("Star detection pipeline runs first six steps (grayscale, blur, background, threshold, erosion, and dilation)")
+func testStarDetectionPipelineFirstSixSteps() async throws {
     // Get Metal device
     guard let device = MTLCreateSystemDefaultDevice() else {
         Issue.record("Metal device not available")
@@ -174,16 +174,50 @@ func testStarDetectionPipelineFirstFourSteps() async throws {
     print("\n=== Process Stack ===")
     print("Total processes: \(processes.count)")
 
-    // Check that grayscale, blur, background, and threshold processes exist
+    // Check for eroded_frame output (from fifth step)
+    // Find data by stepLinkID: "erosion.eroded_frame"
+    let erodedData = outputs.first { data in
+        if case .output(_, _, _, let stepLinkID) = data.outputLink {
+            return stepLinkID == "erosion.eroded_frame"
+        }
+        return false
+    }
+    #expect(erodedData != nil, "Should have eroded_frame output")
+    if let erodedFrame = erodedData as? Frame {
+        #expect(erodedFrame.texture != nil, "Eroded frame should be instantiated")
+        #expect(erodedFrame.isInstantiated, "Eroded frame should be instantiated")
+        print("✓ Eroded frame: \(erodedFrame.texture!.width)x\(erodedFrame.texture!.height)")
+    }
+
+    // Check for dilated_frame output (from sixth step)
+    // Find data by stepLinkID: "dilation.dilated_frame"
+    let dilatedData = outputs.first { data in
+        if case .output(_, _, _, let stepLinkID) = data.outputLink {
+            return stepLinkID == "dilation.dilated_frame"
+        }
+        return false
+    }
+    #expect(dilatedData != nil, "Should have dilated_frame output")
+    if let dilatedFrame = dilatedData as? Frame {
+        #expect(dilatedFrame.texture != nil, "Dilated frame should be instantiated")
+        #expect(dilatedFrame.isInstantiated, "Dilated frame should be instantiated")
+        print("✓ Dilated frame: \(dilatedFrame.texture!.width)x\(dilatedFrame.texture!.height)")
+    }
+
+    // Check that grayscale, blur, background, threshold, erosion, and dilation processes exist
     let grayscaleProcess = processes.first { $0.stepIdentifier == "grayscale" }
     let blurProcess = processes.first { $0.stepIdentifier == "blur" }
     let backgroundProcess = processes.first { $0.stepIdentifier == "background" }
     let thresholdProcess = processes.first { $0.stepIdentifier == "threshold" }
+    let erosionProcess = processes.first { $0.stepIdentifier == "erosion" }
+    let dilationProcess = processes.first { $0.stepIdentifier == "dilation" }
 
     #expect(grayscaleProcess != nil, "Should have grayscale process")
     #expect(blurProcess != nil, "Should have blur process")
     #expect(backgroundProcess != nil, "Should have background process")
     #expect(thresholdProcess != nil, "Should have threshold process")
+    #expect(erosionProcess != nil, "Should have erosion process")
+    #expect(dilationProcess != nil, "Should have dilation process")
 
     // Print process durations
     print("\n=== Process Durations ===")
@@ -198,6 +232,12 @@ func testStarDetectionPipelineFirstFourSteps() async throws {
     }
     if let threshold = thresholdProcess, let duration = threshold.duration {
         print("Threshold: \(String(format: "%.3f", duration))s")
+    }
+    if let erosion = erosionProcess, let duration = erosion.duration {
+        print("Erosion: \(String(format: "%.3f", duration))s")
+    }
+    if let dilation = dilationProcess, let duration = dilation.duration {
+        print("Dilation: \(String(format: "%.3f", duration))s")
     }
 
     print("✓ Pipeline execution completed successfully")

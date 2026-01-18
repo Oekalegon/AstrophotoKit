@@ -6,6 +6,10 @@ public struct AstrophotoKit {
     public init() {
     }
 
+    // Cache for shader libraries per device to avoid recompilation
+    private static var shaderLibraryCache: [ObjectIdentifier: MTLLibrary] = [:]
+    private static let cacheQueue = DispatchQueue(label: "com.astrophotokit.shaderLibraryCache")
+
     /// Loads the default Metal device
     public static func makeDefaultDevice() -> MTLDevice? {
         return MTLCreateSystemDefaultDevice()
@@ -13,7 +17,30 @@ public struct AstrophotoKit {
 
     /// Creates a Metal library from the compiled shaders in this package
     /// Tries multiple methods to find the compiled Metal shaders
+    /// Caches the library per device to avoid recompilation overhead
     public static func makeShaderLibrary(device: MTLDevice) -> MTLLibrary? {
+        let deviceID = ObjectIdentifier(device)
+        
+        // Check cache first
+        return cacheQueue.sync {
+            if let cachedLibrary = shaderLibraryCache[deviceID] {
+                return cachedLibrary
+            }
+            
+            // Load or compile library
+            let library: MTLLibrary? = loadOrCompileShaderLibrary(device: device)
+            
+            // Cache it if successful
+            if let library = library {
+                shaderLibraryCache[deviceID] = library
+            }
+            
+            return library
+        }
+    }
+    
+    /// Internal method to load or compile shader library
+    private static func loadOrCompileShaderLibrary(device: MTLDevice) -> MTLLibrary? {
         // Method 1: Try to load from the package bundle (for Swift packages)
         // This works when the package is used as a dependency
         if let packageBundle = findPackageBundle() {
@@ -40,7 +67,9 @@ public struct AstrophotoKit {
             "GaussianBlurShader",
             "LocalMedianShader",
             "BackgroundSubtractionShader",
-            "ThresholdShader"
+            "ThresholdShader",
+            "ErosionShader",
+            "DilationShader"
         ]
         if let shaderSource = loadShaderSource(requiredShaders: essentialShaders) {
             Logger.swiftfitsio.debug("Attempting to compile Metal library from source...")

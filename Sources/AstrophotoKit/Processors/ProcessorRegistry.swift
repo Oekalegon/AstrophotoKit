@@ -43,6 +43,16 @@ public actor ProcessorRegistry {
         if implementations[threshold.id] == nil {
             register(threshold)
         }
+
+        let erosion = ErosionProcessor()
+        if implementations[erosion.id] == nil {
+            register(erosion)
+        }
+
+        let dilation = DilationProcessor()
+        if implementations[dilation.id] == nil {
+            register(dilation)
+        }
         // Add more processors here as they are created
     }
 
