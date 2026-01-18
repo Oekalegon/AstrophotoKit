@@ -187,7 +187,7 @@ func starDetectionPipelineCreatesCorrectStacks() async throws {
     if let connectedComponentsProcess = processes.first(where: { $0.processorIdentifier == "connected_components" }) {
         // Connected components should have 2 outputs (pixel_coordinates and coordinate_count)
         let outputCount = connectedComponentsProcess.outputData.count
-        #expect(outputCount == 2, "Connected components should have 2 outputs")
+        #expect(outputCount == 1, "Connected components should have 1 output")
         
         // Verify output names, types, and stepLinkIDs
         let outputNames = connectedComponentsProcess.outputData.compactMap { link -> String? in
@@ -197,7 +197,6 @@ func starDetectionPipelineCreatesCorrectStacks() async throws {
             return nil
         }
         #expect(outputNames.contains("pixel_coordinates"), "Should have pixel_coordinates output")
-        #expect(outputNames.contains("coordinate_count"), "Should have coordinate_count output")
         
         // Verify types and stepLinkIDs
         for outputLink in connectedComponentsProcess.outputData {

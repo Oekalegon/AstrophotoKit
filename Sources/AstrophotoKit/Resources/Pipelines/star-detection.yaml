@@ -64,6 +64,12 @@ steps:
       - name: window_size
         default_value: 50
         description: Window size for local median estimation (should be larger than largest stars)
+      - name: histogram_bins
+        default_value: 128
+        description: Number of histogram bins for median calculation (more bins = more accurate but slower)
+      - name: sample_step_threshold
+        default_value: 30
+        description: Window size threshold above which to sample every 2nd pixel (larger = more accurate but slower)
     outputs:
       - name: background_frame
         type: frame
@@ -177,13 +183,6 @@ steps:
           data_type: "table"
           table_type: "star_catalog"
           catalog_format: "pixel_coordinates"
-      - name: coordinate_count
-        type: table
-        description: Number of detected stars
-        metadata:
-          processing_stage: "star_detection"
-          data_type: "scalar"
-          unit: "count"
 
   - id: quads
     type: quads

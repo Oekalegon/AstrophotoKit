@@ -54,6 +54,36 @@ public struct BackgroundEstimationProcessor: Processor {
 
         Logger.processor.debug("Using window size: \(windowSize)x\(windowSize)")
 
+        // Get histogram bins parameter (default: 128 for good performance/accuracy balance)
+        let numBins: Int32
+        if let numBinsParam = parameters["histogram_bins"] {
+            if let intValue = numBinsParam.intValue {
+                numBins = Int32(intValue)
+            } else if let doubleValue = numBinsParam.doubleValue {
+                numBins = Int32(doubleValue)
+            } else {
+                throw ProcessorExecutionError.executionFailed("histogram_bins parameter must be a number")
+            }
+        } else {
+            numBins = 128  // Default: good balance between performance and accuracy
+        }
+
+        // Get sample step threshold parameter (default: 30 - windows larger than this will sample every 2nd pixel)
+        let sampleStepThreshold: Int32
+        if let thresholdParam = parameters["sample_step_threshold"] {
+            if let intValue = thresholdParam.intValue {
+                sampleStepThreshold = Int32(intValue)
+            } else if let doubleValue = thresholdParam.doubleValue {
+                sampleStepThreshold = Int32(doubleValue)
+            } else {
+                throw ProcessorExecutionError.executionFailed("sample_step_threshold parameter must be a number")
+            }
+        } else {
+            sampleStepThreshold = 30  // Default: sample every 2nd pixel for windows > 30
+        }
+
+        Logger.processor.debug("Using histogram bins: \(numBins), sample step threshold: \(sampleStepThreshold)")
+
         // Load shader library and functions
         let library = try ProcessorHelpers.loadShaderLibrary(device: device)
         guard let localMedianFunction = library.makeFunction(name: "local_median"),
@@ -88,6 +118,17 @@ public struct BackgroundEstimationProcessor: Processor {
             device: device
         )
 
+        // Create intermediate texture for multi-pass approach
+        let intermediateDescriptor = ProcessorHelpers.createTextureDescriptor(
+            pixelFormat: inputTexture.pixelFormat,
+            width: inputTexture.width,
+            height: inputTexture.height
+        )
+        let intermediateTexture = try ProcessorHelpers.createTexture(
+            descriptor: intermediateDescriptor,
+            device: device
+        )
+
         let subtractedDescriptor = ProcessorHelpers.createTextureDescriptor(
             pixelFormat: inputTexture.pixelFormat,
             width: inputTexture.width,
@@ -98,76 +139,51 @@ public struct BackgroundEstimationProcessor: Processor {
             device: device
         )
 
-        // Create parameter buffers
-        var windowSizeInt = windowSize
+        // Create parameter buffers (will be updated for each pass)
         var minValue = imageMinValue
         var maxValue = imageMaxValue
-
-        let windowSizeBuffer = try ProcessorHelpers.createBuffer(from: &windowSizeInt, device: device)
+        var numBinsInt = numBins
+        var sampleStepThresholdInt = sampleStepThreshold
         let minValueBuffer = try ProcessorHelpers.createBuffer(from: &minValue, device: device)
         let maxValueBuffer = try ProcessorHelpers.createBuffer(from: &maxValue, device: device)
+        let numBinsBuffer = try ProcessorHelpers.createBuffer(from: &numBinsInt, device: device)
+        let sampleStepThresholdBuffer = try ProcessorHelpers.createBuffer(from: &sampleStepThresholdInt, device: device)
 
-        // Create command buffer
-        let commandBuffer = try ProcessorHelpers.createCommandBuffer(commandQueue: commandQueue)
-
-        // Calculate threadgroups
-        let (threadgroupSize, threadgroupsPerGrid) = ProcessorHelpers.calculateThreadgroups(for: inputTexture)
-
-        // Step 1: Estimate local median background
-        let encoder1 = try ProcessorHelpers.createComputeEncoder(commandBuffer: commandBuffer)
-        encoder1.setComputePipelineState(localMedianPipelineState)
-        encoder1.setTexture(inputTexture, index: 0)
-        encoder1.setTexture(backgroundTexture, index: 1)
-        encoder1.setBuffer(windowSizeBuffer, offset: 0, index: 0)
-        encoder1.setBuffer(minValueBuffer, offset: 0, index: 1)
-        encoder1.setBuffer(maxValueBuffer, offset: 0, index: 2)
-        encoder1.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadgroupSize)
-        encoder1.endEncoding()
-
-        // Step 2: Subtract background from input
-        let encoder2 = try ProcessorHelpers.createComputeEncoder(commandBuffer: commandBuffer)
-        encoder2.setComputePipelineState(localMedianSubtractPipelineState)
-        encoder2.setTexture(inputTexture, index: 0)
-        encoder2.setTexture(backgroundTexture, index: 1)
-        encoder2.setTexture(subtractedTexture, index: 2)
-        encoder2.setBuffer(minValueBuffer, offset: 0, index: 0)
-        encoder2.setBuffer(maxValueBuffer, offset: 0, index: 1)
-        encoder2.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadgroupSize)
-        encoder2.endEncoding()
-
-        // Execute command buffer
-        try ProcessorHelpers.executeCommandBuffer(commandBuffer)
-
-        // Calculate average background level for table output
-        let backgroundLevel = try calculateAverageBackgroundLevel(
-            texture: backgroundTexture,
+        // Multi-pass approach: progressively larger windows
+        let multiPassParams = MultiPassParams(
+            inputTexture: inputTexture,
+            backgroundTexture: backgroundTexture,
+            intermediateTexture: intermediateTexture,
+            windowSize: Int(windowSize),
+            localMedianPipelineState: localMedianPipelineState,
+            minValueBuffer: minValueBuffer,
+            maxValueBuffer: maxValueBuffer,
+            numBinsBuffer: numBinsBuffer,
+            sampleStepThresholdBuffer: sampleStepThresholdBuffer,
             device: device,
             commandQueue: commandQueue
         )
+        try performMultiPassBackgroundEstimation(params: multiPassParams)
 
-        // Update output frames
-        try ProcessorHelpers.updateOutputFrame(
-            outputs: &outputs,
-            outputName: "background_frame",
-            texture: backgroundTexture
+        // Final step: Subtract background from input
+        try subtractBackgroundFromInput(
+            inputTexture: inputTexture,
+            backgroundTexture: backgroundTexture,
+            subtractedTexture: subtractedTexture,
+            localMedianSubtractPipelineState: localMedianSubtractPipelineState,
+            minValueBuffer: minValueBuffer,
+            maxValueBuffer: maxValueBuffer,
+            commandQueue: commandQueue
         )
 
-        try ProcessorHelpers.updateOutputFrame(
+        // Calculate average background level and update outputs
+        try finalizeOutputs(
+            backgroundTexture: backgroundTexture,
+            subtractedTexture: subtractedTexture,
             outputs: &outputs,
-            outputName: "background_subtracted_frame",
-            texture: subtractedTexture
+            device: device,
+            commandQueue: commandQueue
         )
-
-        // Create table with background level
-        if var backgroundLevelTable = outputs["background_level"] as? Table {
-            // Create DataFrame with single row and column
-            var dataFrame = DataFrame()
-            dataFrame.append(column: Column(name: "background_level", contents: [backgroundLevel]))
-            backgroundLevelTable.dataFrame = dataFrame
-            outputs["background_level"] = backgroundLevelTable
-        }
-
-        Logger.processor.info("Background estimation completed (level: \(backgroundLevel))")
     }
 
     /// Calculate average background level from background texture
@@ -225,5 +241,183 @@ public struct BackgroundEstimationProcessor: Processor {
 
         return Double(average)
     }
+
+    /// Parameters for multi-pass background estimation
+    private struct MultiPassParams {
+        let inputTexture: MTLTexture
+        let backgroundTexture: MTLTexture
+        let intermediateTexture: MTLTexture
+        let windowSize: Int
+        let localMedianPipelineState: MTLComputePipelineState
+        let minValueBuffer: MTLBuffer
+        let maxValueBuffer: MTLBuffer
+        let numBinsBuffer: MTLBuffer
+        let sampleStepThresholdBuffer: MTLBuffer
+        let device: MTLDevice
+        let commandQueue: MTLCommandQueue
+    }
+
+    /// Perform multi-pass background estimation with progressively larger windows
+    /// - Parameter params: Multi-pass parameters
+    /// - Throws: ProcessorExecutionError if execution fails
+    private func performMultiPassBackgroundEstimation(params: MultiPassParams) throws {
+        // Start with small window and increase to target size
+        let windowSizes = calculateProgressiveWindowSizes(targetSize: params.windowSize)
+        Logger.processor.debug("Using multi-pass approach with window sizes: \(windowSizes)")
+
+        // Calculate threadgroups
+        let (threadgroupSize, threadgroupsPerGrid) = ProcessorHelpers.calculateThreadgroups(for: params.inputTexture)
+
+        // Multi-pass background estimation
+        for (passIndex, passWindowSize) in windowSizes.enumerated() {
+            var windowSizeInt = Int32(passWindowSize)
+            let windowSizeBuffer = try ProcessorHelpers.createBuffer(from: &windowSizeInt, device: params.device)
+
+            // Create command buffer for this pass
+            let commandBuffer = try ProcessorHelpers.createCommandBuffer(commandQueue: params.commandQueue)
+
+            // Determine input and output textures for this pass
+            let passInputTexture = passIndex == 0 ? params.inputTexture : params.intermediateTexture
+            let passOutputTexture = passIndex == windowSizes.count - 1
+                ? params.backgroundTexture
+                : params.intermediateTexture
+
+            // Estimate local median background with current window size
+            let encoder = try ProcessorHelpers.createComputeEncoder(commandBuffer: commandBuffer)
+            encoder.setComputePipelineState(params.localMedianPipelineState)
+            encoder.setTexture(passInputTexture, index: 0)
+            encoder.setTexture(passOutputTexture, index: 1)
+            encoder.setBuffer(windowSizeBuffer, offset: 0, index: 0)
+            encoder.setBuffer(params.minValueBuffer, offset: 0, index: 1)
+            encoder.setBuffer(params.maxValueBuffer, offset: 0, index: 2)
+            encoder.setBuffer(params.numBinsBuffer, offset: 0, index: 3)
+            encoder.setBuffer(params.sampleStepThresholdBuffer, offset: 0, index: 4)
+            encoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadgroupSize)
+            encoder.endEncoding()
+
+            // Execute this pass
+            try ProcessorHelpers.executeCommandBuffer(commandBuffer)
+
+            Logger.processor.debug(
+                "Completed pass \(passIndex + 1)/\(windowSizes.count) with window size \(passWindowSize)"
+            )
+        }
+    }
+
+    /// Subtract background from input texture
+    /// - Parameters:
+    ///   - inputTexture: The input texture
+    ///   - backgroundTexture: The background texture
+    ///   - subtractedTexture: The output texture for background-subtracted result
+    ///   - localMedianSubtractPipelineState: The compute pipeline state
+    ///   - minValueBuffer: Buffer for minimum image value
+    ///   - maxValueBuffer: Buffer for maximum image value
+    ///   - commandQueue: Metal command queue
+    /// - Throws: ProcessorExecutionError if execution fails
+    private func subtractBackgroundFromInput(
+        inputTexture: MTLTexture,
+        backgroundTexture: MTLTexture,
+        subtractedTexture: MTLTexture,
+        localMedianSubtractPipelineState: MTLComputePipelineState,
+        minValueBuffer: MTLBuffer,
+        maxValueBuffer: MTLBuffer,
+        commandQueue: MTLCommandQueue
+    ) throws {
+        let (threadgroupSize, threadgroupsPerGrid) = ProcessorHelpers.calculateThreadgroups(for: inputTexture)
+        let commandBuffer = try ProcessorHelpers.createCommandBuffer(commandQueue: commandQueue)
+        let encoder = try ProcessorHelpers.createComputeEncoder(commandBuffer: commandBuffer)
+        encoder.setComputePipelineState(localMedianSubtractPipelineState)
+        encoder.setTexture(inputTexture, index: 0)
+        encoder.setTexture(backgroundTexture, index: 1)
+        encoder.setTexture(subtractedTexture, index: 2)
+        encoder.setBuffer(minValueBuffer, offset: 0, index: 0)
+        encoder.setBuffer(maxValueBuffer, offset: 0, index: 1)
+        encoder.dispatchThreadgroups(threadgroupsPerGrid, threadsPerThreadgroup: threadgroupSize)
+        encoder.endEncoding()
+        try ProcessorHelpers.executeCommandBuffer(commandBuffer)
+    }
+
+    /// Finalize outputs by calculating background level and updating output frames
+    /// - Parameters:
+    ///   - backgroundTexture: The background texture
+    ///   - subtractedTexture: The background-subtracted texture
+    ///   - outputs: Dictionary of processor outputs (inout)
+    ///   - device: Metal device
+    ///   - commandQueue: Metal command queue
+    /// - Throws: ProcessorExecutionError if execution fails
+    private func finalizeOutputs(
+        backgroundTexture: MTLTexture,
+        subtractedTexture: MTLTexture,
+        outputs: inout [String: ProcessData],
+        device: MTLDevice,
+        commandQueue: MTLCommandQueue
+    ) throws {
+        // Calculate average background level for table output
+        let backgroundLevel = try calculateAverageBackgroundLevel(
+            texture: backgroundTexture,
+            device: device,
+            commandQueue: commandQueue
+        )
+
+        // Update output frames
+        try ProcessorHelpers.updateOutputFrame(
+            outputs: &outputs,
+            outputName: "background_frame",
+            texture: backgroundTexture
+        )
+
+        try ProcessorHelpers.updateOutputFrame(
+            outputs: &outputs,
+            outputName: "background_subtracted_frame",
+            texture: subtractedTexture
+        )
+
+        // Create table with background level
+        if var backgroundLevelTable = outputs["background_level"] as? Table {
+            var dataFrame = DataFrame()
+            dataFrame.append(column: Column(name: "background_level", contents: [backgroundLevel]))
+            backgroundLevelTable.dataFrame = dataFrame
+            outputs["background_level"] = backgroundLevelTable
+        }
+
+        Logger.processor.info("Background estimation completed (level: \(backgroundLevel))")
+    }
+
+    /// Calculate progressive window sizes for multi-pass approach
+    /// Starts with a small window and progressively increases to target size
+    /// - Parameter targetSize: The final target window size
+    /// - Returns: Array of window sizes to use in each pass
+    private func calculateProgressiveWindowSizes(targetSize: Int) -> [Int] {
+        // Start with a small window (10x10 is fast and gives good initial estimate)
+        let startSize = 10
+
+        // If target is small, just use single pass
+        if targetSize <= startSize {
+            return [targetSize]
+        }
+
+        // Build progressive sizes: 10 -> 20 -> 40 -> 50 (or closest)
+        var sizes: [Int] = [startSize]
+        var currentSize = startSize
+
+        while currentSize < targetSize {
+            // Double the size each time, but don't exceed target
+            let nextSize = min(currentSize * 2, targetSize)
+            if nextSize > currentSize {
+                sizes.append(nextSize)
+                currentSize = nextSize
+            } else {
+                break
+            }
+        }
+
+        // Ensure we end with the exact target size
+        if sizes.last != targetSize {
+            sizes.append(targetSize)
+        }
+
+        return sizes
+    }
 }
+
 
