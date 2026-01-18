@@ -58,6 +58,11 @@ public actor ProcessorRegistry {
         if implementations[connectedComponents.id] == nil {
             register(connectedComponents)
         }
+
+        let quads = QuadsProcessor()
+        if implementations[quads.id] == nil {
+            register(quads)
+        }
         // Add more processors here as they are created
     }
 

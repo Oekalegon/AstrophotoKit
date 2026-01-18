@@ -188,11 +188,12 @@ steps:
     type: quads
     name: Quads
     description: Groups stars into quads for matching
-    dataInputs: []
-    parameters:
+    dataInputs:
       - name: pixel_coordinates
+        type: table
         from: connected_components.pixel_coordinates
         description: Pixel coordinates from connected components
+    parameters:
       - name: max_stars
         from: max_stars
         description: Maximum number of stars to process

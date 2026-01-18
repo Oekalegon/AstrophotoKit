@@ -3,8 +3,8 @@ import Foundation
 import Metal
 @testable import AstrophotoKit
 
-@Test("Star detection pipeline runs first seven steps (grayscale, blur, background, threshold, erosion, dilation, and connected components)")
-func testStarDetectionPipelineFirstSevenSteps() async throws {
+@Test("Star detection pipeline runs first eight steps (grayscale, blur, background, threshold, erosion, dilation, connected components, and quads)")
+func testStarDetectionPipelineFirstEightSteps() async throws {
     // Get Metal device
     guard let device = MTLCreateSystemDefaultDevice() else {
         Issue.record("Metal device not available")
@@ -34,8 +34,8 @@ func testStarDetectionPipelineFirstSevenSteps() async throws {
     }
     // Fallback: try all bundles
     if resourceURL == nil {
-        for b in Bundle.allBundles {
-            if let url = b.url(forResource: fitsFileName, withExtension: "fits") {
+        for bundle in Bundle.allBundles {
+            if let url = bundle.url(forResource: fitsFileName, withExtension: "fits") {
                 resourceURL = url
                 break
             }
@@ -151,7 +151,8 @@ func testStarDetectionPipelineFirstSevenSteps() async throws {
         #expect(backgroundLevelTable.dataFrame != nil, "Background level table should have DataFrame")
         #expect(backgroundLevelTable.rowCount == 1, "Background level table should have 1 row")
         #expect(backgroundLevelTable.columnCount == 1, "Background level table should have 1 column")
-        print("✓ Background level table: \(backgroundLevelTable.rowCount) row(s), \(backgroundLevelTable.columnCount) column(s)")
+        print("✓ Background level table: \(backgroundLevelTable.rowCount) row(s), " +
+              "\(backgroundLevelTable.columnCount) column(s)")
     }
 
     // Check for thresholded_frame output (from fourth step)
@@ -216,23 +217,52 @@ func testStarDetectionPipelineFirstSevenSteps() async throws {
     if let pixelCoordinatesTable = pixelCoordinatesData as? Table {
         #expect(pixelCoordinatesTable.isInstantiated, "Pixel coordinates table should be instantiated")
         #expect(pixelCoordinatesTable.dataFrame != nil, "Pixel coordinates table should have DataFrame")
-        print("✓ Pixel coordinates table: \(pixelCoordinatesTable.rowCount) row(s), \(pixelCoordinatesTable.columnCount) column(s)")
-        if let df = pixelCoordinatesTable.dataFrame {
+        print("✓ Pixel coordinates table: \(pixelCoordinatesTable.rowCount) row(s), " +
+              "\(pixelCoordinatesTable.columnCount) column(s)")
+        if let dataFrame = pixelCoordinatesTable.dataFrame {
             print("  Columns: \(pixelCoordinatesTable.columnNames.joined(separator: ", "))")
-            
+
             // Print first 20 rows using DataFrame's description
             // TabularData's DataFrame has a description property that formats the table nicely
-            let rowsToPrint = min(20, df.rows.count)
+            let rowsToPrint = min(20, dataFrame.rows.count)
             if rowsToPrint > 0 {
                 // Create a subset DataFrame with first N rows
-                let subsetDF = df[0..<rowsToPrint]
+                let subsetDF = dataFrame[0..<rowsToPrint]
                 print("\n  First \(rowsToPrint) rows (sorted by area, descending):")
                 print(subsetDF.description)
             }
         }
     }
 
-    // Check that grayscale, blur, background, threshold, erosion, dilation, and connected_components processes exist
+    // Check for quads table output (from eighth step)
+    // Find data by stepLinkID: "quads.quads"
+    let quadsData = outputs.first { data in
+        if case .output(_, _, _, let stepLinkID) = data.outputLink {
+            return stepLinkID == "quads.quads"
+        }
+        return false
+    }
+    #expect(quadsData != nil, "Should have quads output")
+    if let quadsTable = quadsData as? Table {
+        #expect(quadsTable.isInstantiated, "Quads table should be instantiated")
+        #expect(quadsTable.dataFrame != nil, "Quads table should have DataFrame")
+        print("✓ Quads table: \(quadsTable.rowCount) row(s), \(quadsTable.columnCount) column(s)")
+        if let dataFrame = quadsTable.dataFrame {
+            print("  Columns: \(quadsTable.columnNames.joined(separator: ", "))")
+
+            // Print first 10 rows using DataFrame's description
+            let rowsToPrint = min(10, dataFrame.rows.count)
+            if rowsToPrint > 0 {
+                // Create a subset DataFrame with first N rows
+                let subsetDF = dataFrame[0..<rowsToPrint]
+                print("\n  First \(rowsToPrint) quads:")
+                print(subsetDF.description)
+            }
+        }
+    }
+
+    // Check that grayscale, blur, background, threshold, erosion, dilation,
+    // connected_components, and quads processes exist
     let grayscaleProcess = processes.first { $0.stepIdentifier == "grayscale" }
     let blurProcess = processes.first { $0.stepIdentifier == "blur" }
     let backgroundProcess = processes.first { $0.stepIdentifier == "background" }
@@ -240,6 +270,7 @@ func testStarDetectionPipelineFirstSevenSteps() async throws {
     let erosionProcess = processes.first { $0.stepIdentifier == "erosion" }
     let dilationProcess = processes.first { $0.stepIdentifier == "dilation" }
     let connectedComponentsProcess = processes.first { $0.stepIdentifier == "connected_components" }
+    let quadsProcess = processes.first { $0.stepIdentifier == "quads" }
 
     #expect(grayscaleProcess != nil, "Should have grayscale process")
     #expect(blurProcess != nil, "Should have blur process")
@@ -248,6 +279,7 @@ func testStarDetectionPipelineFirstSevenSteps() async throws {
     #expect(erosionProcess != nil, "Should have erosion process")
     #expect(dilationProcess != nil, "Should have dilation process")
     #expect(connectedComponentsProcess != nil, "Should have connected_components process")
+    #expect(quadsProcess != nil, "Should have quads process")
 
     // Print process durations
     print("\n=== Process Durations ===")
@@ -272,7 +304,9 @@ func testStarDetectionPipelineFirstSevenSteps() async throws {
     if let connectedComponents = connectedComponentsProcess, let duration = connectedComponents.duration {
         print("Connected Components: \(String(format: "%.3f", duration))s")
     }
+    if let quads = quadsProcess, let duration = quads.duration {
+        print("Quads: \(String(format: "%.3f", duration))s")
+    }
 
     print("✓ Pipeline execution completed successfully")
 }
-
