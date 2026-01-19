@@ -68,6 +68,11 @@ public actor ProcessorRegistry {
         if implementations[starDetectionOverlay.id] == nil {
             register(starDetectionOverlay)
         }
+
+        let fwhm = FWHMProcessor()
+        if implementations[fwhm.id] == nil {
+            register(fwhm)
+        }
         // Add more processors here as they are created
     }
 

@@ -19,8 +19,9 @@ kernel void draw_ellipses(texture2d<float> inputTexture [[texture(0)]],
     // Read original pixel value from RGBA output texture (background already copied)
     float4 originalColor = outputTexture.read(gid);
     
-    // Use pixel coordinates directly (gid matches pixel position)
-    float2 pixelPos = float2(gid.x, gid.y);
+    // Use pixel center coordinates (gid is at pixel corner, add 0.5 to get center)
+    // This ensures the cross aligns with the centroid at pixel centers
+    float2 pixelPos = float2(gid.x + 0.5, gid.y + 0.5);
     
     // Background is already RGB (grayscale converted to RGB)
     float3 originalRGB = originalColor.rgb;
@@ -152,8 +153,8 @@ kernel void draw_quads(texture2d<float> inputTexture [[texture(0)]],
     // Get quad color
     float3 quadColor = float3(quadColorData[0], quadColorData[1], quadColorData[2]);
     
-    // Use pixel coordinates directly
-    float2 pixelPos = float2(gid.x, gid.y);
+    // Use pixel center coordinates (gid is at pixel corner, add 0.5 to get center)
+    float2 pixelPos = float2(gid.x + 0.5, gid.y + 0.5);
     
     // Check if this pixel is on any quad line
     bool isOnQuad = false;
