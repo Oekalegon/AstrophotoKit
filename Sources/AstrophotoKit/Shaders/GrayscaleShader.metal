@@ -23,7 +23,7 @@ kernel void grayscale(texture2d<float> inputTexture [[texture(0)]],
 
     // Write grayscale value to output
     // For single-channel output textures (r32Float), Metal will use the first component
-    // Writing float4 with the value in R and zeros elsewhere works correctly
-    outputTexture.write(float4(grayscaleValue, 0.0, 0.0, 0.0), gid);
+    // Using float4(grayscaleValue) broadcasts the value, which is more efficient than explicit zeros
+    outputTexture.write(float4(grayscaleValue), gid);
 }
 

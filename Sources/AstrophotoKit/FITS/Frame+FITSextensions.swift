@@ -8,8 +8,8 @@ extension Frame {
     /// the Metal texture from the image data. Metadata such as frame type and filter
     /// are extracted from the FITS header if available.
     /// 
-    /// The texture is converted to RGBA format for consistent processing and display,
-    /// similar to how the old implementation handled FITS images.
+    /// The texture is kept as grayscale (r32Float) for memory efficiency.
+    /// Convert to RGBA only when needed (e.g., for color overlays in StarDetectionOverlayProcessor).
     /// - Parameters:
     ///   - fitsImage: The FITS image to create the frame from
     ///   - device: The Metal device to use for creating the texture
@@ -24,16 +24,8 @@ extension Frame {
     ) throws {
         // Create the texture from the FITS image as r32Float (pixelData is always Float32)
         // This ensures correct data layout regardless of original FITS data type
-        let grayscaleTexture = try fitsImage.createMetalTexture(device: device, pixelFormat: .r32Float)
-        
-        // Convert to RGBA for consistent display format (prevents grainy appearance)
-        let texture: MTLTexture
-        if grayscaleTexture.pixelFormat != .rgba32Float {
-            let converter = try GrayscaleToRGBA(device: device)
-            texture = try converter.convert(grayscaleTexture)
-        } else {
-            texture = grayscaleTexture
-        }
+        // Keep as grayscale for memory efficiency - only convert to RGBA when needed (e.g., for color overlays)
+        let texture = try fitsImage.createMetalTexture(device: device, pixelFormat: .r32Float)
 
         // Determine color space from the texture's pixel format
         let colorSpace = ColorSpace.from(metalPixelFormat: texture.pixelFormat) ?? .greyscale
