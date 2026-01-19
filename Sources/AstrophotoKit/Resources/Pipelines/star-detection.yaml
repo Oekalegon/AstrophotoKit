@@ -4,26 +4,26 @@ description: Detects stars in astronomical images using Gaussian blur, backgroun
 
 
 steps:
-  # - id: grayscale
-  #   type: grayscale
-  #   name: Grayscale
-  #   description: Converts the input frame to grayscale (if it is not already)
-  #   dataInputs:
-  #     - name: input_frame
-  #       type: frame
-  #       from: input_frame
-  #       metadata_restrictions:
-  #         frame_type:
-  #           - light
-  #       description: The input frame to convert to grayscale
-  #   parameters: []
-  #   outputs:
-  #     - name: grayscale_frame
-  #       type: frame
-  #       description: Grayscale version of the input frame
-  #       metadata:
-  #         processing_stage: "color_conversion"
-  #         image_type: "grayscale"
+  - id: grayscale
+    type: grayscale
+    name: Grayscale
+    description: Converts the input frame to grayscale (if it is not already)
+    dataInputs:
+      - name: input_frame
+        type: frame
+        from: input_frame
+        metadata_restrictions:
+          frame_type:
+            - light
+        description: The input frame to convert to grayscale
+    parameters: []
+    outputs:
+      - name: grayscale_frame
+        type: frame
+        description: Grayscale version of the input frame
+        metadata:
+          processing_stage: "color_conversion"
+          image_type: "grayscale"
 
   - id: blur
     type: gaussian_blur
@@ -32,7 +32,7 @@ steps:
     dataInputs:
       - name: input_frame
         type: frame
-        from: input_frame
+        from: grayscale.grayscale_frame
         metadata_restrictions:
           frame_type:
             - light

@@ -222,7 +222,7 @@ public class FITSImageRenderer: NSObject, MTKViewDelegate {
         let isGrayscale: Float = (texture?.pixelFormat == .r32Float) ? 1.0 : 0.0
         
         // Write entire struct at once to ensure proper alignment
-        var uniforms = Uniforms(
+        let uniforms = Uniforms(
             scale: scale,
             offset: offset,
             aspectRatio: aspectRatio,
