@@ -19,9 +19,10 @@ kernel void draw_ellipses(texture2d<float> inputTexture [[texture(0)]],
     // Read original pixel value from RGBA output texture (background already copied)
     float4 originalColor = outputTexture.read(gid);
     
-    // Use pixel center coordinates (gid is at pixel corner, add 0.5 to get center)
-    // This ensures the cross aligns with the centroid at pixel centers
-    float2 pixelPos = float2(gid.x + 0.5, gid.y + 0.5);
+    // Use pixel coordinates directly (gid matches pixel position)
+    // Centroids are calculated using integer pixel coordinates (corner-based),
+    // so we use the same coordinate system here
+    float2 pixelPos = float2(gid.x, gid.y);
     
     // Background is already RGB (grayscale converted to RGB)
     float3 originalRGB = originalColor.rgb;
@@ -75,8 +76,12 @@ kernel void draw_ellipses(texture2d<float> inputTexture [[texture(0)]],
         float distToMajorAxis = abs(rotated.y);
         float distToMinorAxis = abs(rotated.x);
         
-        // Check if within 0.5 pixels of an axis and within ellipse bounds
-        if (ellipseValue <= 1.0) {
+        // Draw axes through the centroid, extending beyond the ellipse
+        // Check if within 0.5 pixels of an axis, and within a reasonable distance from centroid
+        float distFromCentroid = length(translated);
+        float maxAxisLength = max(majorAxis, minorAxis) * 2.0; // Extend axes 2x the ellipse size
+        
+        if (distFromCentroid <= maxAxisLength) {
             if (distToMajorAxis <= 0.5 || distToMinorAxis <= 0.5) {
                 isOnAxis = true;
             }
@@ -153,8 +158,8 @@ kernel void draw_quads(texture2d<float> inputTexture [[texture(0)]],
     // Get quad color
     float3 quadColor = float3(quadColorData[0], quadColorData[1], quadColorData[2]);
     
-    // Use pixel center coordinates (gid is at pixel corner, add 0.5 to get center)
-    float2 pixelPos = float2(gid.x + 0.5, gid.y + 0.5);
+    // Use pixel coordinates directly (gid matches pixel position)
+    float2 pixelPos = float2(gid.x, gid.y);
     
     // Check if this pixel is on any quad line
     bool isOnQuad = false;

@@ -63,4 +63,4 @@ fastlane/test_output
 
 
 # FITS files should not be stored in git (too large)
-/Tests/AstrophotoKitTests/Resources/*.fits
+/Tests/AstrophotoKitTests/Resources/*
