@@ -82,7 +82,8 @@ public enum FITSKeywordCatalog {
                 keyword: key,
                 displayName: info?.displayName ?? key,
                 value: value,
-                displayValue: formatValue(value, unit: info?.unit, precision: info?.precision),
+                displayValue: localizedDateTimeValue(for: key, value: value)
+                    ?? formatValue(value, unit: info?.unit, precision: info?.precision),
                 unit: info?.unit
             )
             buckets[info?.group ?? .other, default: []].append((entry, info?.sortIndex ?? Int.max))
@@ -125,6 +126,30 @@ public enum FITSKeywordCatalog {
             return "\(base) \(unit)"
         }
         return base
+    }
+
+    /// Keywords holding an observation timestamp. FITS writers (NINA, SharpCap,
+    /// MaximDL) store these as UTC, often without a timezone designator.
+    private static let dateTimeKeywords: Set<String> = [
+        "DATE-OBS", "DATE-BEG", "DATE-END", "EXPSTART", "EXPEND", "DATE",
+    ]
+
+    private static let localDateTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .medium
+        f.timeStyle = .medium
+        return f
+    }()
+
+    /// Reformats a header timestamp keyword (stored as UTC) into the user's
+    /// local time zone for display. Returns `nil` for non-date keywords or
+    /// values that don't parse as a date, so the caller falls back to
+    /// `formatValue`.
+    private static func localizedDateTimeValue(for keyword: String, value: FITSHeaderValue) -> String? {
+        guard dateTimeKeywords.contains(keyword.uppercased()),
+              case .string(let raw) = value,
+              let date = Frame.parseDate(raw.trimmingCharacters(in: .whitespaces)) else { return nil }
+        return localDateTimeFormatter.string(from: date)
     }
 
     private static func trimmedDouble(_ value: Double) -> String {
